@@ -242,7 +242,7 @@ dspline<- function(x, spline, log = TRUE) {
       cbind(0 * spline$node_values[c(i, p)]),
       Sigma
     )
-    if( mode == "advector" ) {
+    if( mode == "advector" | "simref" %in% class(x) ) {
       ll<- ll + RTMB::dmvnorm(
         x[i],
         cmvn$mean,
