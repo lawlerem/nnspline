@@ -1,0 +1,5 @@
+# Installation
+
+To install the package, run devtools::install_github("lawlerem/nnspline") from an R session.
+
+
