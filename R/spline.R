@@ -214,7 +214,7 @@ update_spline_values<- function(
         Sigma<- as.matrix(Sigma)
       }
       Sigma[1, 1]<- spline$variance
-      Sigma[1, seq_along(p) + 1]<- spline$x_covariance[i, p]
+      Sigma[1, seq_along(p) + 1]<- spline$x_covariance[no_node_x[i], p]
       Sigma[seq_along(p) + 1, 1]<- 0
       Sigma<- Sigma + t(Sigma)
       diag(Sigma)<- diag(Sigma) / 2
