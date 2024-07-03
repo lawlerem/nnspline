@@ -369,17 +369,15 @@ nns<- function(
     spline
   ) {
   if( !("matrix" %in% class(x)) ) x<- cbind(x)
+  spline_x<- t(spline$x)
   idx<- apply(
     x,
     MARGIN = 1,
     function(row) {
-      d<- sweep(
-        spline$x,
-        MARGIN = 2,
-        row
-      )
-      d<- sqrt(rowSums(d^2))
-      return(which.min(d))
+        d<- spline_x - row 
+        d<- sqrt(colSums(d^2))
+        idx<- which.min(d)
+        return(idx)
     }
   )
   return(spline$values[idx])
