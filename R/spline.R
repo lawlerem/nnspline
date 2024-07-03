@@ -123,6 +123,7 @@ update_spline_covariance<- function(
   mode<- "numeric"
   if( "advector" %in% class(spline$parameters) && requireNamespace("RTMB") ) mode<- "advector"
   if( mode == "advector" ) {
+    RTMB::ADoverload()
     spline$x_covariance<- as(spline$x_covariance, "adsparse")
     spline$node_covariance<- as(spline$node_covariance, "adsparse")
   } else {}
@@ -132,32 +133,34 @@ update_spline_covariance<- function(
     ip_to_j(spline$x_covariance@i, spline$x_covariance@p) + 1,
     0
   )
-  x_m[, 3]<- spline$variance * apply(
+  cors<- apply(
     x_m,
     MARGIN = 1,
     function(row) spline$correlation_function(
       spline$x[row[[1]], ],
       spline$nodes[row[[2]], ],
       spline$parameters
-    )
+    ),
+    simplify = FALSE
   )
-  spline$x_covariance@x<- x_m[, 3]
+  spline$x_covariance@x<- spline$variance * do.call(c, cors)
 
   node_m<- cbind(
     spline$node_covariance@i + 1,
     ip_to_j(spline$node_covariance@i, spline$node_covariance@p) + 1,
     0
   )
-  node_m[, 3]<- spline$variance * apply(
+  cors<- apply(
     node_m,
     MARGIN = 1,
     function(row) spline$correlation_function(
       spline$nodes[row[[1]], ],
       spline$nodes[row[[2]], ],
       spline$parameters
-    )
+    ),
+    simplify = FALSE
   )
-  spline$node_covariance@x<- node_m[, 3]
+  spline$node_covariance@x<- spline$variance * do.call(c, cors)
 
   return(spline)
 }
