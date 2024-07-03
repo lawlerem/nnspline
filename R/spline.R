@@ -121,27 +121,38 @@ update_spline_covariance<- function(
     spline$node_covariance<- as(spline$node_covariance, "adsparse")
   } else {}
 
-  all_j<- ip_to_j(spline$x_covariance@i, spline$x_covariance@p)
-  for( entry in seq_along(spline$x_covariance@i) ) {
-    i<- spline$x_covariance@i[[entry]] + 1
-    j<- all_j[[entry]] + 1
-    spline$x_covariance@x[[entry]]<- spline$variance * spline$correlation_function(
-      spline$x[i, ],
-      spline$nodes[j, ],
+  x_m<- cbind(
+    spline$x_covariance@i + 1,
+    ip_to_j(spline$x_covariance@i, spline$x_covariance@p) + 1,
+    0
+  )
+  x_m[, 3]<- spline$variance * apply(
+    x_m,
+    MARGIN = 1,
+    function(row) spline$correlation_function(
+      spline$x[row[[1]], ],
+      spline$nodes[row[[2]], ],
       spline$parameters
     )
-  }
+  )
+  spline$x_covariance@x<- x_m[, 3]
 
-  all_j<- ip_to_j(spline$node_covariance@i, spline$node_covariance@p)
-  for( entry in seq_along(spline$node_covariance@i) ) {
-    i<- spline$node_covariance@i[[entry]] + 1
-    j<- all_j[[entry]] + 1
-    spline$node_covariance@x[[entry]]<- spline$variance * spline$correlation_function(
-      spline$nodes[i, ],
-      spline$nodes[j, ],
+  node_m<- cbind(
+    spline$node_covariance@i + 1,
+    ip_to_j(spline$node_covariance@i, spline$node_covariance@p) + 1,
+    0
+  )
+  node_m[, 3]<- spline$variance * apply(
+    node_m,
+    MARGIN = 1,
+    function(row) spline$correlation_function(
+      spline$nodes[row[[1]], ],
+      spline$nodes[row[[2]], ],
       spline$parameters
     )
-  }
+  )
+  spline$node_covariance@x<- node_m[, 3]
+
   return(spline)
 }
 
