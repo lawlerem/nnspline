@@ -61,7 +61,7 @@ create_nnspline<- function(
     )
   )
 
-  x_parents<- Matrix::Matrix(x_parents, sparse = TRUE)
+  x_parents<- Matrix::Matrix(x_parents, sparse = TRUE, doDiag = FALSE)
   x_covariance<- x_parents
 
   ind<- (x_parents@x == 1)
@@ -128,23 +128,6 @@ update_spline_covariance<- function(
     spline$node_covariance<- as(spline$node_covariance, "adsparse")
   } else {}
 
-  x_m<- cbind(
-    spline$x_covariance@i + 1,
-    ip_to_j(spline$x_covariance@i, spline$x_covariance@p) + 1,
-    0
-  )
-  cors<- apply(
-    x_m,
-    MARGIN = 1,
-    function(row) spline$correlation_function(
-      spline$x[row[[1]], ],
-      spline$nodes[row[[2]], ],
-      spline$parameters
-    ),
-    simplify = FALSE
-  )
-  spline$x_covariance@x<- spline$variance * do.call(c, cors)
-
   node_m<- cbind(
     spline$node_covariance@i + 1,
     ip_to_j(spline$node_covariance@i, spline$node_covariance@p) + 1,
@@ -161,6 +144,25 @@ update_spline_covariance<- function(
     simplify = FALSE
   )
   spline$node_covariance@x<- spline$variance * do.call(c, cors)
+
+  if( any(spline$x_parents@x != -1) ) {
+    x_m<- cbind(
+      spline$x_covariance@i + 1,
+      ip_to_j(spline$x_covariance@i, spline$x_covariance@p) + 1,
+      0
+    )
+    cors<- apply(
+      x_m,
+      MARGIN = 1,
+      function(row) spline$correlation_function(
+        spline$x[row[[1]], ],
+        spline$nodes[row[[2]], ],
+        spline$parameters
+      ),
+      simplify = FALSE
+    )
+    spline$x_covariance@x<- spline$variance * do.call(c, cors)
+  } else {}
 
   return(spline)
 }
@@ -197,39 +199,41 @@ update_spline_values<- function(
 
   # Update x values that are between nodes
   no_node_x<- which(!x_type)
-  no_node_parents<- apply(
-    spline$x_parents[no_node_x, ],
-    MARGIN = 1,
-    function(parents) return(which(parents == 1)),
-    simplify = FALSE
-  )
-  no_node_prediction<- lapply(
-    seq_along(no_node_x),
-    function(i) {
-      p<- no_node_parents[[i]]
-      Sigma<- spline$node_covariance[c(1, p), c(1, p)]
-      if( mode == "advector" ) {
-        Sigma<- adsparse_to_admatrix(Sigma)
-      } else {
-        Sigma<- as.matrix(Sigma)
-      }
-      Sigma[1, 1]<- spline$variance
-      Sigma[1, seq_along(p) + 1]<- spline$x_covariance[no_node_x[i], p]
-      Sigma[seq_along(p) + 1, 1]<- 0
-      Sigma<- Sigma + t(Sigma)
-      diag(Sigma)<- diag(Sigma) / 2
+  if( length(no_node_x) > 0 ) {
+    no_node_parents<- apply(
+      spline$x_parents[no_node_x, ],
+      MARGIN = 1,
+      function(parents) return(which(parents == 1)),
+      simplify = FALSE
+    )
+    no_node_prediction<- lapply(
+      seq_along(no_node_x),
+      function(i) {
+        p<- no_node_parents[[i]]
+        Sigma<- spline$node_covariance[c(1, p), c(1, p)]
+        if( mode == "advector" ) {
+          Sigma<- adsparse_to_admatrix(Sigma)
+        } else {
+          Sigma<- as.matrix(Sigma)
+        }
+        Sigma[1, 1]<- spline$variance
+        Sigma[1, seq_along(p) + 1]<- spline$x_covariance[no_node_x[i], p]
+        Sigma[seq_along(p) + 1, 1]<- 0
+        Sigma<- Sigma + t(Sigma)
+        diag(Sigma)<- diag(Sigma) / 2
 
-      cmvn<- conditional_normal(
-        cbind(c(spline$values[i], spline$node_values[p])),
-        cbind(numeric(length(p) + 1)),
-        Sigma,
-        predicted = 1,
-        predictors = seq_along(p) + 1
-      )
-      return(cmvn$mean)
-    }
-  )
-  spline$values[no_node_x]<- do.call(c, no_node_prediction)
+        cmvn<- conditional_normal(
+          cbind(c(spline$values[i], spline$node_values[p])),
+          cbind(numeric(length(p) + 1)),
+          Sigma,
+          predicted = 1,
+          predictors = seq_along(p) + 1
+        )
+        return(cmvn$mean)
+      }
+    )
+    spline$values[no_node_x]<- do.call(c, no_node_prediction)
+  } else {}
   
   return(spline)
 }
