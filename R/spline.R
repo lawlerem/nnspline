@@ -191,7 +191,7 @@ update_spline_values<- function(
   # Update x values that are actually node values
   node_x<- which(x_type)
   node_x_parents<- apply(
-    spline$x_parents[node_x, ],
+    spline$x_parents[node_x, , drop = FALSE],
     MARGIN = 1,
     function(parents) which(parents == -1)
   )
