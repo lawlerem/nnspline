@@ -6,6 +6,7 @@
 #' @param variance The marginal variance of the spline.
 #' @param parameters The parameters used in the correlation function.
 #' @param correlation_function A function used to compute correlation between spline inputs. Should have the arguments x1 and x2, vectors giving the spline inputs, and p, a vector of parameters.
+#' @param node_graph An optional argument. If supplied, it needs to be an igraph object representing a directed acyclic graph.
 #'
 #' @return A multispline object as a list with the following elements:
 #'   - values The output values of the spline at x.
@@ -33,7 +34,8 @@ create_nnspline<- function(
       d<- sqrt(sum((x1 - x2)^2))
       range<- p[[1]]
       (1 + d / range) * exp( -d / range )
-    }
+    },
+    node_graph
   ) {
   if( !("matrix" %in% class(x)) ) x<- matrix(x, ncol = 1)
   if( !("matrix" %in% class(nodes)) ) nodes<- matrix(nodes, ncol = 1)
@@ -74,10 +76,12 @@ create_nnspline<- function(
     x = mat_x
   )
 
-  node_graph<- nnspline:::distance_matrix_to_dag(
-    dist(nodes),
-    k = n_parents
-  )
+  if( missing(node_graph) ) {
+    node_graph<- nnspline:::distance_matrix_to_dag(
+        dist(nodes),
+        k = n_parents
+    )
+  }
   node_pairs<- nnspline:::get_pairs(node_graph, x_parents)
   node_covariance<- Matrix::sparseMatrix(
       i = node_pairs$i,

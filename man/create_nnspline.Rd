@@ -15,7 +15,8 @@ create_nnspline(
     
     range <- p[[1]]
      (1 + d/range) * exp(-d/range)
- }
+ },
+  node_graph
 )
 }
 \arguments{
@@ -30,6 +31,8 @@ create_nnspline(
 \item{parameters}{The parameters used in the correlation function.}
 
 \item{correlation_function}{A function used to compute correlation between spline inputs. Should have the arguments x1 and x2, vectors giving the spline inputs, and p, a vector of parameters.}
+
+\item{node_graph}{An optional argument. If supplied, it needs to be an igraph object representing a directed acyclic graph.}
 }
 \value{
 A multispline object as a list with the following elements:
