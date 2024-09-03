@@ -35,6 +35,7 @@ create_nnspline<- function(
       range<- p[[1]]
       (1 + d / range) * exp( -d / range )
     },
+    x_variance = mean(variance),
     node_graph
   ) {
   if( !("matrix" %in% class(x)) ) x<- matrix(x, ncol = 1)
@@ -89,23 +90,33 @@ create_nnspline<- function(
       x = rep(1, nrow(node_pairs))
     )
 
-  return(
-    list(
-      values = numeric(nrow(x)),
-      x = x,
-      x_parents = x_parents,
-      node_values = numeric(nrow(nodes)),
-      node_values_map = seq(nrow(nodes)),
-      nodes = nodes,
-      node_graph = node_graph,
-      variance = variance,
-      parameters = parameters,
-      parameter_map = seq_along(parameters),
-      correlation_function = correlation_function,
-      x_covariance = x_covariance,
-      node_covariance = node_covariance
-    )
+  spline<- list(
+    values = numeric(nrow(x)),
+    x = x,
+    x_parents = x_parents,
+    node_values = numeric(nrow(nodes)),
+    node_values_map = seq(nrow(nodes)),
+    nodes = nodes,
+    node_graph = node_graph,
+    variance = variance,
+    x_variance = x_variance,
+    parameters = parameters,
+    parameter_map = seq_along(parameters),
+    correlation_function = correlation_function,
+    x_covariance = x_covariance,
+    node_covariance = node_covariance
   )
+  spline<- update_spline_covariance(
+    spline,
+    spline$variance,
+    spline$parameters,
+    spline$x_variance
+  )
+  spline<- update_spline_values(
+    spline,
+    spline$node_values
+  )
+  return(spline)
 }
 
 #' @describeIn update_spline Update a spline's covariance matrix
@@ -120,9 +131,17 @@ update_spline_covariance<- function(
     spline,
     variance,
     parameters,
+    x_variance,
     ...
   ) {
-  if( !missing(variance) ) spline$variance<- variance
+  v_missing<- missing(variance)
+  x_v_missing<- missing(x_variance)
+  if( !v_missing & x_v_missing ) {
+    x_variance<- mean(variance)
+  }
+  if( !v_missing ) spline$variance<- rep(variance, length.out = nrow(spline$nodes))
+  if( !(v_missing & x_v_missing) ) spline$x_variance<- rep(x_variance, length.out = nrow(spline$x))
+
   if( !missing(parameters) ) spline$parameters<- parameters
   mode<- "numeric"
   if( "advector" %in% class(spline$parameters) && requireNamespace("RTMB") ) mode<- "advector"
@@ -134,38 +153,44 @@ update_spline_covariance<- function(
 
   node_m<- cbind(
     spline$node_covariance@i + 1,
-    ip_to_j(spline$node_covariance@i, spline$node_covariance@p) + 1,
-    0
+    ip_to_j(spline$node_covariance@i, spline$node_covariance@p) + 1
   )
-  cors<- apply(
+  covs<- apply(
     node_m,
     MARGIN = 1,
-    function(row) spline$correlation_function(
-      spline$nodes[row[[1]], ],
-      spline$nodes[row[[2]], ],
-      spline$parameters
-    ),
+    function(row) {
+      var<- sqrt(spline$variance[row[[1]]] * spline$variance[row[[2]]])
+      cor<- spline$correlation_function(
+        spline$nodes[row[[1]], ],
+        spline$nodes[row[[2]], ],
+        spline$parameters
+      )
+      return( var * cor )
+    },
     simplify = FALSE
   )
-  spline$node_covariance@x<- spline$variance * do.call(c, cors)
+  spline$node_covariance@x<- do.call(c, covs)
 
   if( any(spline$x_parents@x != -1) ) {
     x_m<- cbind(
       spline$x_covariance@i + 1,
-      ip_to_j(spline$x_covariance@i, spline$x_covariance@p) + 1,
-      0
+      ip_to_j(spline$x_covariance@i, spline$x_covariance@p) + 1
     )
-    cors<- apply(
+    covs<- apply(
       x_m,
       MARGIN = 1,
-      function(row) spline$correlation_function(
-        spline$x[row[[1]], ],
-        spline$nodes[row[[2]], ],
-        spline$parameters
-      ),
+      function(row) {
+        var<- sqrt(spline$x_variance[row[[1]]] * spline$variance[row[[2]]])
+        cor<- spline$correlation_function(
+          spline$x[row[[1]], ],
+          spline$nodes[row[[2]], ],
+          spline$parameters
+        )
+        return(var * cor)
+      },
       simplify = FALSE
     )
-    spline$x_covariance@x<- spline$variance * do.call(c, cors)
+    spline$x_covariance@x<- do.call(c, covs)
   } else {}
 
   return(spline)
@@ -220,7 +245,7 @@ update_spline_values<- function(
         } else {
           Sigma<- as.matrix(Sigma)
         }
-        Sigma[1, 1]<- spline$variance
+        Sigma[1, 1]<- spline$x_variance[no_node_x[i]]
         Sigma[1, seq_along(p) + 1]<- spline$x_covariance[no_node_x[i], p]
         Sigma[seq_along(p) + 1, 1]<- 0
         Sigma<- Sigma + t(Sigma)
