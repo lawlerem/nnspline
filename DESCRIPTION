@@ -15,7 +15,7 @@ LinkingTo:
 Imports: 
     igraph (>= 2.0),
     MASS,
-    Matrix,
+    Matrix (>= 1.7),
     methods,
     mvtnorm,
     RcppEigen,
