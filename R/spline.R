@@ -358,16 +358,16 @@ dpspline<- function(
   ll<- 0
   if( mode == "advector" ) {
     ll<- ll + RTMB::dexp(
-      spline$variance,
+      mean(spline$variance),
       penalty,
       TRUE
     )
   } else {
-    ll<- ll + stats::dexp(
-      spline$variance,
+    ll<- ll + sum(stats::dexp(
+      mean(spline$variance),
       penalty,
       TRUE
-    )
+    ))
   }
   ll<- ll + dspline(x, spline, log = TRUE)
   if( !log ) ll<- exp(ll)
