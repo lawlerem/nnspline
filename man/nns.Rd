@@ -4,12 +4,14 @@
 \alias{nns}
 \title{Evaluate a nnspline}
 \usage{
-nns(x, spline)
+nns(x, spline, index = FALSE)
 }
 \arguments{
 \item{x}{The input values}
 
 \item{spline}{The spline}
+
+\item{index}{Logical. If TRUE, returns the index instead of the value.}
 }
 \value{
 The value(s) of the spline at x

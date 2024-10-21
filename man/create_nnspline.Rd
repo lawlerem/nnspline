@@ -8,13 +8,15 @@ create_nnspline(
   x,
   nodes = x,
   n_parents = 4,
-  variance = 1,
-  parameters = c(1),
-  correlation_function = function(x1, x2, p) {
+  parameters = c(1, 1),
+  covariance_function = function(x1, x2, p) {
      d <- sqrt(sum((x1 - x2)^2))
     
-    range <- p[[1]]
-     (1 + d/range) * exp(-d/range)
+    variance <- p[[1]]
+     range <- p[[2]]
+     cov <- variance * (1 + d/range) *
+    exp(-d/range)
+     return(cov)
  },
   node_graph
 )
@@ -26,11 +28,9 @@ create_nnspline(
 
 \item{n_parents}{The number of parents each node should have.}
 
-\item{variance}{The marginal variance of the spline.}
+\item{parameters}{The parameters used in the covariance function.}
 
-\item{parameters}{The parameters used in the correlation function.}
-
-\item{correlation_function}{A function used to compute correlation between spline inputs. Should have the arguments x1 and x2, vectors giving the spline inputs, and p, a vector of parameters.}
+\item{covariance_function}{A function used to compute covariances between spline inputs. Should have the arguments x1 and x2, vectors giving the spline inputs, and p, a vector of parameters.}
 
 \item{node_graph}{An optional argument. If supplied, it needs to be an igraph object representing a directed acyclic graph.}
 }
@@ -44,10 +44,9 @@ A multispline object as a list with the following elements:
 \item node_values_map Mapping indices for the node values. See ?TMB::MakeADFun.
 \item nodes The locations of the spline nodes.
 \item node_graph An igraph directed acyclic graph represnting the node parent structure.
-\item variance The marginal variance of the spline.
-\item parameters The parameters for the correlation function.
+\item parameters The parameters for the covariance function.
 \item parameter_map Mapping indices for the parameters. See ?TMB::MakeADFun.
-\item correlation_function The function used to compute correlations between input points.
+\item covariance_function The function used to compute covariances between input points.
 \item x_covariance Sparse covariance matrices for the spline x values.
 \item node_covariance Sparse covariance matrices for the spline nodes.
 }

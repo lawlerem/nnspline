@@ -3,9 +3,8 @@
 #' @param x A numeric matrix giving the locations (as rows) for which the spline values are desired
 #' @param nodes A numeric matrix giving the spline knot locations as rows.
 #' @param n_parents The number of parents each node should have.
-#' @param variance The marginal variance of the spline.
-#' @param parameters The parameters used in the correlation function.
-#' @param correlation_function A function used to compute correlation between spline inputs. Should have the arguments x1 and x2, vectors giving the spline inputs, and p, a vector of parameters.
+#' @param parameters The parameters used in the covariance function.
+#' @param covariance_function A function used to compute covariances between spline inputs. Should have the arguments x1 and x2, vectors giving the spline inputs, and p, a vector of parameters.
 #' @param node_graph An optional argument. If supplied, it needs to be an igraph object representing a directed acyclic graph.
 #'
 #' @return A multispline object as a list with the following elements:
@@ -16,10 +15,9 @@
 #'   - node_values_map Mapping indices for the node values. See ?TMB::MakeADFun.
 #'   - nodes The locations of the spline nodes.
 #'   - node_graph An igraph directed acyclic graph represnting the node parent structure.
-#'   - variance The marginal variance of the spline.
-#'   - parameters The parameters for the correlation function.
+#'   - parameters The parameters for the covariance function.
 #'   - parameter_map Mapping indices for the parameters. See ?TMB::MakeADFun.
-#'   - correlation_function The function used to compute correlations between input points.
+#'   - covariance_function The function used to compute covariances between input points.
 #'   - x_covariance Sparse covariance matrices for the spline x values.
 #'   - node_covariance Sparse covariance matrices for the spline nodes.
 #' 
@@ -28,14 +26,14 @@ create_nnspline<- function(
     x,
     nodes = x,
     n_parents = 4,
-    variance = 1,
-    parameters = c(1),
-    correlation_function = function(x1, x2, p) {
+    parameters = c(1, 1),
+    covariance_function = function(x1, x2, p) {
       d<- sqrt(sum((x1 - x2)^2))
-      range<- p[[1]]
-      (1 + d / range) * exp( -d / range )
+      variance<- p[[1]]
+      range<- p[[2]]
+      cov<- variance * (1 + d / range) * exp( -d / range )
+      return(cov)
     },
-    x_variance = mean(variance),
     node_graph
   ) {
   if( !("matrix" %in% class(x)) ) x<- matrix(x, ncol = 1)
@@ -69,8 +67,15 @@ create_nnspline<- function(
 
   ind<- (x_parents@x == 1)
   mat_i<- x_covariance@i[ind]
-  mat_j<- nnspline:::ip_to_j(x_covariance@i, x_covariance@p)[ind]
-  mat_x<- x_covariance@x[ind]
+  mat_i<- c(mat_i, unique(mat_i))
+  mat_j<- c(
+    ip_to_j(x_covariance@i, x_covariance@p)[ind] + 1,
+    rep(0, length(unique(mat_i)))
+  )
+  mat_x<- c(
+    x_covariance@x[ind],
+    rep(1, length(unique(mat_i)))
+  )
   x_covariance<- Matrix::sparseMatrix(
     i = mat_i + 1,
     j = mat_j + 1,
@@ -78,12 +83,12 @@ create_nnspline<- function(
   )
 
   if( missing(node_graph) ) {
-    node_graph<- nnspline:::distance_matrix_to_dag(
+    node_graph<- distance_matrix_to_dag(
         dist(nodes),
         k = n_parents
     )
   }
-  node_pairs<- nnspline:::get_pairs(node_graph, x_parents)
+  node_pairs<- get_pairs(node_graph, x_parents)
   node_covariance<- Matrix::sparseMatrix(
       i = node_pairs$i,
       j = node_pairs$j,
@@ -98,19 +103,15 @@ create_nnspline<- function(
     node_values_map = seq(nrow(nodes)),
     nodes = nodes,
     node_graph = node_graph,
-    variance = variance,
-    x_variance = x_variance,
     parameters = parameters,
     parameter_map = seq_along(parameters),
-    correlation_function = correlation_function,
+    covariance_function = covariance_function,
     x_covariance = x_covariance,
     node_covariance = node_covariance
   )
   spline<- update_spline_covariance(
     spline,
-    spline$variance,
-    spline$parameters,
-    spline$x_variance
+    spline$parameters
   )
   spline<- update_spline_values(
     spline,
@@ -121,27 +122,17 @@ create_nnspline<- function(
 
 #' @describeIn update_spline Update a spline's covariance matrix
 #' 
-#' @param variance The new marginal variance of the spline. If missing, will
-#'   use the pre-existing variance stored in the spline.
-#' @param parameters The new parameters of the spline. If missing, will
+#' @param parameters The new parameters for the spline. If missing, will
 #'   use the pre-existing parameters stored in the spline.
+#' @param only_node_covariance Logical. If TRUE, the cross-covariance matrix between x and nodes will not be updated.
 #' 
 #' @export
 update_spline_covariance<- function(
     spline,
-    variance,
     parameters,
-    x_variance,
+    only_node_covariance = FALSE,
     ...
   ) {
-  v_missing<- missing(variance)
-  x_v_missing<- missing(x_variance)
-  if( !v_missing & x_v_missing ) {
-    x_variance<- mean(variance)
-  }
-  if( !v_missing ) spline$variance<- rep(variance, length.out = nrow(spline$nodes))
-  if( !(v_missing & x_v_missing) ) spline$x_variance<- rep(x_variance, length.out = nrow(spline$x))
-
   if( !missing(parameters) ) spline$parameters<- parameters
   mode<- "numeric"
   if( "advector" %in% class(spline$parameters) && requireNamespace("RTMB") ) mode<- "advector"
@@ -159,17 +150,18 @@ update_spline_covariance<- function(
     node_m,
     MARGIN = 1,
     function(row) {
-      var<- sqrt(spline$variance[row[[1]]] * spline$variance[row[[2]]])
-      cor<- spline$correlation_function(
+      cov<- spline$covariance_function(
         spline$nodes[row[[1]], ],
         spline$nodes[row[[2]], ],
         spline$parameters
       )
-      return( var * cor )
+      return( cov )
     },
     simplify = FALSE
   )
   spline$node_covariance@x<- do.call(c, covs)
+
+  if( only_node_covariance ) return(spline)
 
   if( any(spline$x_parents@x != -1) ) {
     x_m<- cbind(
@@ -180,13 +172,17 @@ update_spline_covariance<- function(
       x_m,
       MARGIN = 1,
       function(row) {
-        var<- sqrt(spline$x_variance[row[[1]]] * spline$variance[row[[2]]])
-        cor<- spline$correlation_function(
+        if( row[[2]] == 1 ) {
+          loc2<- spline$x[row[[1]], ]
+        } else {
+          loc2<- spline$nodes[row[[2]] - 1, ]
+        }
+        cov<- spline$covariance_function(
           spline$x[row[[1]], ],
-          spline$nodes[row[[2]], ],
+          loc2,
           spline$parameters
         )
-        return(var * cor)
+        return(cov)
       },
       simplify = FALSE
     )
@@ -245,9 +241,8 @@ update_spline_values<- function(
         } else {
           Sigma<- as.matrix(Sigma)
         }
-        Sigma[1, 1]<- spline$x_variance[no_node_x[i]]
-        Sigma[1, seq_along(p) + 1]<- spline$x_covariance[no_node_x[i], p]
-        Sigma[seq_along(p) + 1, 1]<- 0
+        Sigma[1, ]<- spline$x_covariance[no_node_x[i], c(1, p + 1)]
+        Sigma[-1, 1]<- 0
         Sigma<- Sigma + t(Sigma)
         diag(Sigma)<- diag(Sigma) / 2
 
@@ -298,7 +293,7 @@ update_spline<- function(
 #' @export
 dspline<- function(x, spline, log = TRUE) {
   mode<- "numeric"
-  if( "advector" %in% class(x) && requireNamespace("RTMB") ) mode<- "advector"
+  if( ("advector" %in% class(x) || "adsparse" %in% class(spline$node_covariance)) && requireNamespace("RTMB") ) mode<- "advector"
   node_order<- as.numeric(igraph::topo_sort(spline$node_graph))
   ll<- 0
   for( i in node_order ) {
@@ -332,44 +327,6 @@ dspline<- function(x, spline, log = TRUE) {
       )
     }
   }
-  if( !log ) ll<- exp(ll)
-  return(ll)
-}
-
-#' Evaluate the penalized log-likelihood of a spline
-#'
-#' @param x The node values
-#' @param spline The spline object
-#' @param penalty How much should the variance be penalized?
-#' @param log If TRUE, returns the log-likelihood.
-#'
-#' @return The log-likelihood of the spline evaluated at x. If x is a simref
-#'   object, then the values of x will be replaced with simulated values.
-#'
-#' @export
-dpspline<- function(
-    x,
-    spline,
-    penalty = 0.01,
-    log = TRUE
-  ) {
-  mode<- "numeric"
-  if( "advector" %in% class(x) && requireNamespace("RTMB") ) mode<- "advector"
-  ll<- 0
-  if( mode == "advector" ) {
-    ll<- ll + RTMB::dexp(
-      mean(spline$variance),
-      penalty,
-      TRUE
-    )
-  } else {
-    ll<- ll + sum(stats::dexp(
-      mean(spline$variance),
-      penalty,
-      TRUE
-    ))
-  }
-  ll<- ll + dspline(x, spline, log = TRUE)
   if( !log ) ll<- exp(ll)
   return(ll)
 }
@@ -434,13 +391,15 @@ rspline<- function(
 #' 
 #' @param x The input values
 #' @param spline The spline
+#' @param index Logical. If TRUE, returns the index instead of the value.
 #' 
 #' @return The value(s) of the spline at x
 #'
 #' @export
 nns<- function(
     x,
-    spline
+    spline,
+    index = FALSE
   ) {
   if( !("matrix" %in% class(x)) ) x<- cbind(x)
   spline_x<- t(spline$x)
@@ -454,6 +413,6 @@ nns<- function(
         return(idx)
     }
   )
-  return(spline$values[idx])
+  if( index ) return(idx) else return(spline$values[idx])
 }
 

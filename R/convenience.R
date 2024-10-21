@@ -124,6 +124,8 @@ get_pairs<- function(dag, x_parents) {
 #' @param predictors Indices declaring which of the n elements should be conditioned on.
 #'
 #' @return A list with the conditional mean of variance of x\[predicted, \] given x\[predictors, \]
+#' 
+#' @export
 conditional_normal<- function(
     x,
     mu,

@@ -6,7 +6,7 @@
 \alias{update_spline}
 \title{Update a spline based on node values and parameters values}
 \usage{
-update_spline_covariance(spline, variance, parameters, ...)
+update_spline_covariance(spline, parameters, only_node_covariance = FALSE, ...)
 
 update_spline_values(spline, node_values, ...)
 
@@ -15,11 +15,10 @@ update_spline(spline, ...)
 \arguments{
 \item{spline}{An nnspline}
 
-\item{variance}{The new marginal variance of the spline. If missing, will
-use the pre-existing variance stored in the spline.}
-
-\item{parameters}{The new parameters of the spline. If missing, will
+\item{parameters}{The new parameters for the spline. If missing, will
 use the pre-existing parameters stored in the spline.}
+
+\item{only_node_covariance}{Logical. If TRUE, the cross-covariance matrix between x and nodes will not be updated.}
 
 \item{...}{Used to pass arguments onto sub-functions.}
 
