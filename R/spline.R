@@ -407,6 +407,7 @@ nns<- function(
     x,
     MARGIN = 1,
     function(row) {
+        if( any(is.na(row)) ) return(NA)
         d<- spline_x - row 
         d<- sqrt(colSums(d^2))
         idx<- which.min(d)
