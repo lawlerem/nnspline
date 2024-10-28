@@ -307,7 +307,7 @@ dspline<- function(x, spline, log = TRUE) {
     Sigma<- Sigma + t(Sigma)
     diag(Sigma)<- diag(Sigma) / 2
     cmvn<- conditional_normal(
-      cbind(spline$node_values[c(i, p)]),
+      cbind(x[c(i, p)]),
       cbind(0 * spline$node_values[c(i, p)]),
       Sigma
     )
