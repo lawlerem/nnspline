@@ -22,11 +22,13 @@ ip_to_j<- function(
 #' @return A dense matrix with the appropriate evaluation class
 adsparse_to_admatrix<- function(m) {
   if( !requireNamespace("RTMB") ) stop("must have RTMB package to use this function.")
-  mm<- RTMB::advector(numeric(prod(m@Dim)))
+  mm<- RTMB::AD(numeric(prod(m@Dim)))
   dim(mm)<- m@Dim
-  for( e in seq_along(m@x) ) {
-    mm[m@i[[e]] + 1, sum(m@p < e)]<- m@x[e]
-  }
+  i<- m@i
+  j<- nnspline:::ip_to_j(m@i, m@p)
+  ind<- cbind(i + 1, j + 1)
+  x<- m@x
+  mm[ind]<- x
 
   return(mm)
 }
