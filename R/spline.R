@@ -81,6 +81,7 @@ create_nnspline<- function(
     j = mat_j + 1,
     x = mat_x
   )
+  x_ij<- x_covariance@i + ip_to_j(x_covariance@i, x_covariance@p) * x_covariance@Dim[[1]]
 
   if( missing(node_graph) ) {
     node_graph<- distance_matrix_to_dag(
@@ -94,6 +95,7 @@ create_nnspline<- function(
       j = node_pairs$j,
       x = rep(1, nrow(node_pairs))
     )
+  node_ij<- node_covariance@i + ip_to_j(node_covariance@i, node_covariance@p) * node_covariance@Dim[[1]]
 
   spline<- list(
     values = numeric(nrow(x)),
@@ -107,7 +109,9 @@ create_nnspline<- function(
     parameter_map = seq_along(parameters),
     covariance_function = covariance_function,
     x_covariance = x_covariance,
-    node_covariance = node_covariance
+    x_ij = x_ij,
+    node_covariance = node_covariance,
+    node_ij = node_ij
   )
   spline<- update_spline_covariance(
     spline,
@@ -232,21 +236,27 @@ update_spline_values<- function(
       simplify = FALSE
     )
 
-    node_cov<- spline$node_covariance
-    x_cov<- spline$x_covariance
-    if( mode == "advector" ) {
-      node_cov<- adsparse_to_admatrix(node_cov)
-      x_cov<- adsparse_to_admatrix(x_cov)
-    } else {
-      node_cov<- as.matrix(node_cov)
-      x_cov<- as.matrix(x_cov)
-    }
     no_node_prediction<- lapply(
       seq_along(no_node_x),
       function(i) {
         p<- no_node_parents[[i]]
-        Sigma<- node_cov[c(1, p), c(1, p)]
-        Sigma[1, ]<- x_cov[no_node_x[i], c(1, p + 1)]
+        if( mode == "advector" ) {
+          Sigma<- adsparse_to_admatrix(
+            spline$node_covariance,
+            c(1, p),
+            c(1, p),
+            spline$node_ij
+          )
+          Sigma[1, ]<- adsparse_to_admatrix(
+            spline$x_covariance,
+            no_node_x[i],
+            c(1, p + 1),
+            spline$x_ij
+          )
+        } else {
+          Sigma<- as.matrix(spline$node_covariance[c(1, p), c(1, p)])
+          Sigma[1, ]<- as.matrix(spline$x_covariance[no_node_x[i], c(1, p + 1)])
+        }
         Sigma[-1, 1]<- 0
         Sigma<- Sigma + t(Sigma)
         diag_ind<- cbind(seq(nrow(Sigma)), seq(nrow(Sigma)))
@@ -302,14 +312,18 @@ dspline<- function(x, spline, log = TRUE) {
   if( ("advector" %in% class(x) || "adsparse" %in% class(spline$node_covariance)) && requireNamespace("RTMB") ) mode<- "advector"
   node_order<- as.numeric(igraph::topo_sort(spline$node_graph))
   ll<- 0
-  if( mode == "advector" ) {
-    node_cov<- adsparse_to_admatrix(spline$node_covariance)
-  } else {
-    node_cov<- as.matrix(spline$node_covariance)
-  }
   for( i in node_order ) {
     p<- as.numeric(igraph::neighbors(spline$node_graph, i, "in"))
-    Sigma<- node_cov[c(i, p), c(i, p), drop = FALSE]
+    if( mode == "advector" ) {
+      Sigma<- adsparse_to_admatrix(
+        spline$node_covariance,
+        c(i, p),
+        c(i, p),
+        spline$node_ij
+      )
+    } else {
+      Sigma<- as.matrix(spline$node_covariance[c(i, p), c(i, p)])
+    }
     Sigma<- Sigma + t(Sigma)
     diag_ind<- cbind(seq(nrow(Sigma)), seq(nrow(Sigma)))
     Sigma[diag_ind]<- Sigma[diag_ind] / 2
@@ -357,10 +371,9 @@ rspline<- function(
     ncol = n
   )
   node_order<- as.numeric(igraph::topo_sort(spline$node_graph))
-  node_cov<- as.matrix(spline$node_covariance)
   for( i in node_order ) {
     p<- as.numeric(igraph::neighbors(spline$node_graph, i, "in"))
-    Sigma<- node_cov[c(i, p), c(i, p)]
+    Sigma<- as.matrix(spline$node_covariance[c(i, p), c(i, p)])
     Sigma<- Sigma + t(Sigma)
     diag_ind<- cbind(seq(nrow(Sigma)), seq(nrow(Sigma)))
     Sigma[diag_ind]<- Sigma[diag_ind] / 2

@@ -4,10 +4,16 @@
 \alias{adsparse_to_admatrix}
 \title{Convert a sparse matrix to a dense matrix, preserving RTMB evaluation mode}
 \usage{
-adsparse_to_admatrix(m)
+adsparse_to_admatrix(m, i, j, m_ij)
 }
 \arguments{
 \item{m}{A sparse matrix}
+
+\item{i}{An integer vector to index rows to subset}
+
+\item{j}{An integer vector to index columns to subset}
+
+\item{m_ij}{Optional. An integer vector giving the vector position of the non-zero values of m if treated as a dense matrix.}
 }
 \value{
 A dense matrix with the appropriate evaluation class

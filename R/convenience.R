@@ -18,21 +18,34 @@ ip_to_j<- function(
 #' Convert a sparse matrix to a dense matrix, preserving RTMB evaluation mode
 #'
 #' @param m A sparse matrix
+#' @param i An integer vector to index rows to subset
+#' @param j An integer vector to index columns to subset
+#' @param m_ij Optional. An integer vector giving the vector position of the non-zero values of m if treated as a dense matrix.
 #'
 #' @return A dense matrix with the appropriate evaluation class
-adsparse_to_admatrix<- function(m) {
+adsparse_to_admatrix<- function(m, i, j, m_ij) {
   if( !requireNamespace("RTMB") ) stop("must have RTMB package to use this function.")
-  mm<- RTMB::AD(numeric(prod(m@Dim)))
-  dim(mm)<- m@Dim
-  i<- m@i
-  j<- nnspline:::ip_to_j(m@i, m@p)
-  ind<- cbind(i + 1, j + 1)
-  x<- m@x
-  mm[ind]<- x
+  if( missing(i) ) i<- seq_len(m@Dim[[1]])
+  if( missing(j) ) j<- seq_len(m@Dim[[2]])
+  if( any(i > m@Dim[[1]]) ) stop("i is greater than the number of rows.")
+  if( any(j > m@Dim[[2]]) ) stop("j is greater than the number of columns.")
 
-  return(mm)
+  ans<- RTMB::AD(numeric(length(i) * length(j)))
+  dim(ans)<- c(length(i), length(j))
+  if( missing(m_ij) ) m_ij<- m@i + ip_to_j(m@i, m@p) * m@Dim[[1]]
+  mx<- m@x
+  
+  ans_ij<- c(outer(i - 1, j - 1, function(X, Y) X + Y * m@Dim[1]))
+  ans_ind<- cbind(
+    rep_len(seq_along(i), length(i) * length(j)),
+    rep(seq_along(j), each = length(i))
+  )
+  matches<- match(ans_ij, m_ij)
+  isgood_matches<- !is.na(matches)
+  ans[ans_ind[isgood_matches, ]]<- mx[matches[isgood_matches]]
+
+  return(ans)
 }
-
 
 #' Convert a distance matrix to a directed acyclic graph
 #'
