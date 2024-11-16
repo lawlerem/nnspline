@@ -420,15 +420,16 @@ nns<- function(
     spline,
     index = FALSE
   ) {
-  if( ncol(spline$x) == 1 ) {
-    xdim<- dim(x)
-    x<- cbind(c(x))
+  if( (ncol(spline$x) == 1) & (tail(dim(x), 1) != 1) ) {
+    x<- array(x, dim = c(dim(x), 1))
   }
-  if( !("matrix" %in% class(x)) ) x<- cbind(x)
+  if( tail(dim(x), 1) != ncol(spline$x) ) {
+    stop("The last dimension of x needs to be the same as the number of columns of spline$x.")
+  }
   spline_x<- t(spline$x)
   idx<- apply(
     x,
-    MARGIN = 1,
+    MARGIN = seq(length(dim(x)) - 1),
     function(row) {
         if( any(is.na(row)) ) return(NA)
         d<- spline_x - row 
@@ -438,7 +439,7 @@ nns<- function(
     }
   )
   
-  ans<- idx
+  ans<- c(idx)
   if( !index ) {
     if( "advector" %in% class(spline$parameters) ) {
       ans<- RTMB::AD(idx)
@@ -448,7 +449,7 @@ nns<- function(
       ans<- spline$values[idx]
     }
   }
-  if( ncol(spline$x) ) ans<- array(ans, dim = xdim)
+  ans<- array(ans, dim = head(dim(x), -1))
   return(ans)
 }
 
