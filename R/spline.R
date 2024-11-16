@@ -408,11 +408,11 @@ rspline<- function(
 
 #' Evaluate a nnspline
 #' 
-#' @param x The input values
+#' @param x The input values. If spline$x has one column, then x can be an array of any dimension and the output will be the same dimensions. If spline$x has more than one column, then x must be a matrix with same number of columns as spline$x and the output will be a numeric vector with length equal to nrow(x).
 #' @param spline The spline
 #' @param index Logical. If TRUE, returns the index instead of the value.
 #' 
-#' @return The value(s) of the spline at x
+#' @return The value(s) of the spline at x, or its indices if index is TRUE.
 #'
 #' @export
 nns<- function(
@@ -420,6 +420,10 @@ nns<- function(
     spline,
     index = FALSE
   ) {
+  if( ncol(spline$x) == 1 ) {
+    xdim<- dim(x)
+    x<- cbind(c(x))
+  }
   if( !("matrix" %in% class(x)) ) x<- cbind(x)
   spline_x<- t(spline$x)
   idx<- apply(
@@ -433,6 +437,18 @@ nns<- function(
         return(idx)
     }
   )
-  if( index ) return(idx) else return(spline$values[idx])
+  
+  ans<- idx
+  if( !index ) {
+    if( "advector" %in% class(spline$parameters) ) {
+      ans<- RTMB::AD(idx)
+      ans[is.na(idx)]<- RTMB::AD(NA)
+      ans[!is.na(idx)]<- spline$values[idx[!is.na(idx)]]
+    } else {
+      ans<- spline$values[idx]
+    }
+  }
+  if( ncol(spline$x) ) ans<- array(ans, dim = xdim)
+  return(ans)
 }
 

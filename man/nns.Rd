@@ -7,14 +7,14 @@
 nns(x, spline, index = FALSE)
 }
 \arguments{
-\item{x}{The input values}
+\item{x}{The input values. If spline$x has one column, then x can be an array of any dimension and the output will be the same dimensions. If spline$x has more than one column, then x must be a matrix with same number of columns as spline$x and the output will be a numeric vector with length equal to nrow(x).}
 
 \item{spline}{The spline}
 
 \item{index}{Logical. If TRUE, returns the index instead of the value.}
 }
 \value{
-The value(s) of the spline at x
+The value(s) of the spline at x, or its indices if index is TRUE.
 }
 \description{
 Evaluate a nnspline
