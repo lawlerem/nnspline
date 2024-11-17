@@ -420,6 +420,9 @@ nns<- function(
     spline,
     index = FALSE
   ) {
+  if( is.null(dim(x)) ) {
+    x<- array(x, dim = c(length(x), 1))
+  }
   if( (ncol(spline$x) == 1) & (tail(dim(x), 1) != 1) ) {
     x<- array(x, dim = c(dim(x), 1))
   }
