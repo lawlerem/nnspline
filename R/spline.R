@@ -389,11 +389,6 @@ rspline<- function(
     )
     node_values[i, ]<- node_values[i, ] + cmvn$mean
   }
-  node_values<- sweep(
-    node_values,
-    MARGIN = 2,
-    STATS = colMeans(node_values)
-  )
   sims<- lapply(
     seq(n),
     function(i) update_spline_values(spline, node_values[, i])
@@ -423,7 +418,9 @@ nns<- function(
   if( is.null(dim(x)) ) {
     x<- array(x, dim = c(length(x), 1))
   }
-  if( (ncol(spline$x) == 1) & (tail(dim(x), 1) != 1) ) {
+  # If ncol(x) == ncol(spline$x), we're good
+  # if( (ncol(spline$x) == 1) & (tail(dim(x), 1) != 1) ) {
+  if( ncol(x) == ncol(spline$x) ) {
     x<- array(x, dim = c(dim(x), 1))
   }
   if( tail(dim(x), 1) != ncol(spline$x) ) {
