@@ -419,8 +419,8 @@ nns<- function(
     x<- array(x, dim = c(length(x), 1))
   }
   # If ncol(x) == ncol(spline$x), we're good
-  # if( (ncol(spline$x) == 1) & (tail(dim(x), 1) != 1) ) {
-  if( ncol(x) == ncol(spline$x) ) {
+  if( (ncol(spline$x) == 1) & (tail(dim(x), 1) != 1) ) {
+  # if( ncol(x) == ncol(spline$x) ) {
     x<- array(x, dim = c(dim(x), 1))
   }
   if( tail(dim(x), 1) != ncol(spline$x) ) {
