@@ -6,8 +6,8 @@
 \usage{
 conditional_normal(
   x,
-  mu,
-  Sigma,
+  joint_mean,
+  joint_covariance,
   predicted = 1,
   predictors = tail(seq(nrow(x)), -1)
 )
@@ -15,9 +15,9 @@ conditional_normal(
 \arguments{
 \item{x}{An n x k matrix. Columns index independent replicates.}
 
-\item{mu}{An n x k mean matrix. Columns index independent replicates.}
+\item{joint_mean}{An n x k mean matrix. Columns index independent replicates.}
 
-\item{Sigma}{An n x n covariance matrix. Can be a sparse matrix.}
+\item{joint_covariance}{An n x n covariance matrix. Can be a sparse matrix.}
 
 \item{predicted}{Indices declaring which of the n elements should be predicted.}
 

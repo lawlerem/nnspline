@@ -240,32 +240,17 @@ update_spline_values<- function(
       seq_along(no_node_x),
       function(i) {
         p<- no_node_parents[[i]]
-        if( mode == "advector" ) {
-          Sigma<- adsparse_to_admatrix(
-            spline$node_covariance,
-            c(1, p),
-            c(1, p),
-            spline$node_ij
-          )
-          Sigma[1, ]<- adsparse_to_admatrix(
-            spline$x_covariance,
-            no_node_x[i],
-            c(1, p + 1),
-            spline$x_ij
-          )
-        } else {
-          Sigma<- as.matrix(spline$node_covariance[c(1, p), c(1, p)])
-          Sigma[1, ]<- as.matrix(spline$x_covariance[no_node_x[i], c(1, p + 1)])
-        }
-        Sigma[-1, 1]<- 0
-        Sigma<- Sigma + t(Sigma)
-        diag_ind<- cbind(seq(nrow(Sigma)), seq(nrow(Sigma)))
-        Sigma[diag_ind]<- Sigma[diag_ind] / 2
-
+        Sigma<- get_joint_covariance(
+          spline,
+          no_node_x[[i]],
+          p,
+          prediction_type = "x",
+          mode = mode
+        )
         cmvn<- conditional_normal(
-          cbind(c(spline$values[i], spline$node_values[p])),
-          cbind(numeric(length(p) + 1)),
-          Sigma,
+          x = cbind(c(spline$values[i], spline$node_values[p])),
+          joint_mean = cbind(numeric(length(p) + 1)),
+          joint_covariance = Sigma,
           predicted = 1,
           predictors = seq_along(p) + 1
         )
@@ -314,19 +299,13 @@ dspline<- function(x, spline, log = TRUE) {
   ll<- 0
   for( i in node_order ) {
     p<- as.numeric(igraph::neighbors(spline$node_graph, i, "in"))
-    if( mode == "advector" ) {
-      Sigma<- adsparse_to_admatrix(
-        spline$node_covariance,
-        c(i, p),
-        c(i, p),
-        spline$node_ij
-      )
-    } else {
-      Sigma<- as.matrix(spline$node_covariance[c(i, p), c(i, p)])
-    }
-    Sigma<- Sigma + t(Sigma)
-    diag_ind<- cbind(seq(nrow(Sigma)), seq(nrow(Sigma)))
-    Sigma[diag_ind]<- Sigma[diag_ind] / 2
+    Sigma<- get_joint_covariance(
+      spline,
+      i,
+      p,
+      prediction_type = "node",
+      mode = mode
+    )
     cmvn<- conditional_normal(
       cbind(x[c(i, p)]),
       cbind(0 * spline$node_values[c(i, p)]),
@@ -373,10 +352,13 @@ rspline<- function(
   node_order<- as.numeric(igraph::topo_sort(spline$node_graph))
   for( i in node_order ) {
     p<- as.numeric(igraph::neighbors(spline$node_graph, i, "in"))
-    Sigma<- as.matrix(spline$node_covariance[c(i, p), c(i, p)])
-    Sigma<- Sigma + t(Sigma)
-    diag_ind<- cbind(seq(nrow(Sigma)), seq(nrow(Sigma)))
-    Sigma[diag_ind]<- Sigma[diag_ind] / 2
+    Sigma<- get_joint_covariance(
+      spline,
+      i,
+      p,
+      prediction_type = "node",
+      mode = "numeric"
+    )
     cmvn<- conditional_normal(
       node_values[c(i, p), , drop = FALSE],
       0 * node_values[c(i, p), , drop = FALSE],
@@ -398,16 +380,15 @@ rspline<- function(
 }
 
 
-
-
-
 #' Evaluate a nnspline
 #' 
-#' @param x The input values. If spline$x has one column, then x can be an array of any dimension and the output will be the same dimensions. If spline$x has more than one column, then x must be a matrix with same number of columns as spline$x and the output will be a numeric vector with length equal to nrow(x).
+#' @param x The input values. If x is a vector it is treated as a column vector.
+#'   The dimensions of x should be equal to c(DIM, ncol(spline$x)). 
+#'   If ncol(spline$x) == 1, then the dimensions can drop the last dimension and be just DIM.
 #' @param spline The spline
 #' @param index Logical. If TRUE, returns the index instead of the value.
 #' 
-#' @return The value(s) of the spline at x, or its indices if index is TRUE.
+#' @return The value(s) of the spline at x, or its indices if index is TRUE. the dimension of the return is equal to DIM.
 #'
 #' @export
 nns<- function(
@@ -415,16 +396,14 @@ nns<- function(
     spline,
     index = FALSE
   ) {
-  if( is.null(dim(x)) ) {
-    x<- array(x, dim = c(length(x), 1))
-  }
-  # If ncol(x) == ncol(spline$x), we're good
-  if( (ncol(spline$x) == 1) & (tail(dim(x), 1) != 1) ) {
-  # if( ncol(x) == ncol(spline$x) ) {
-    x<- array(x, dim = c(dim(x), 1))
-  }
+  # If x is a vector, make it a matrix with 1 column
+  if( is.null(dim(x)) ) x<- array(x, dim = c(length(x), 1))
   if( tail(dim(x), 1) != ncol(spline$x) ) {
-    stop("The last dimension of x needs to be the same as the number of columns of spline$x.")
+    if( ncol(spline$x) == 1 ) {
+      x<- array(x, dim = c(dim(x), 1))
+    } else {
+      stop("The last dimension of x must be equal to the number of columns of spline$x.")
+    }
   }
   spline_x<- t(spline$x)
   idx<- apply(

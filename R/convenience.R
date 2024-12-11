@@ -47,6 +47,61 @@ adsparse_to_admatrix<- function(m, i, j, m_ij) {
   return(ans)
 }
 
+
+#' Find the joint covariance matrix for an x/node and its parents
+#' 
+#' @param spline The spline
+#' @param idx The index of either an x or node
+#' @param parent_idx The index of the parents of idx
+#' @param prediction_type Either "x" if idx refers to an x or "node" if idx refers to a node
+#' @param mode Either "numeric" or "advector"
+#' 
+#' @return A dense covariance matrix
+get_joint_covariance<- function(
+    spline, 
+    idx,
+    parent_idx,
+    prediction_type = "node",
+    mode = "numeric"
+  ) {
+  if( prediction_type == "node" ) {
+    if( mode == "numeric" ) {
+      Sigma<- as.matrix(spline$node_covariance[c(idx, parent_idx), c(idx, parent_idx)])
+    } else if( mode == "advector" ) {
+      Sigma<- adsparse_to_admatrix(
+        m = spline$node_covariance,
+        i = c(idx, parent_idx),
+        j = c(idx, parent_idx),
+        m_ij = spline$node_ij
+      )
+    }
+  } else if( prediction_type == "x" ) {
+    if( mode == "numeric" ) {
+      Sigma<- as.matrix(spline$node_covariance[c(1, parent_idx), c(1, parent_idx)])
+      Sigma[1, ]<- as.matrix(spline$x_covariance[idx, c(1, parent_idx + 1)])
+    } else if( mode == "advector" ) {
+      Sigma<- adsparse_to_admatrix(
+        spline$node_covariance,
+        c(1, parent_idx),
+        c(1, parent_idx),
+        spline$node_ij
+      )
+      Sigma[1, ]<- adsparse_to_admatrix(
+        m = spline$x_covariance,
+        i = idx,
+        j = c(1, parent_idx + 1),
+        m_ij = spline$x_ij
+      )
+    }
+  }
+  Sigma[-1, 1]<- 0
+  Sigma<- Sigma + t(Sigma)
+  diag_ind<- cbind(seq(nrow(Sigma)), seq(nrow(Sigma)))
+  Sigma[diag_ind]<- Sigma[diag_ind] / 2
+  
+  return(Sigma)
+}
+
 #' Convert a distance matrix to a directed acyclic graph
 #'
 #' @param d A distance matrix, or of class "dist"new_
@@ -133,8 +188,8 @@ get_pairs<- function(dag, x_parents) {
 #' Conditional mean and variance from joint Gaussian variables
 #'
 #' @param x An n x k matrix. Columns index independent replicates.
-#' @param mu An n x k mean matrix. Columns index independent replicates.
-#' @param Sigma An n x n covariance matrix. Can be a sparse matrix.
+#' @param joint_mean An n x k mean matrix. Columns index independent replicates.
+#' @param joint_covariance An n x n covariance matrix. Can be a sparse matrix.
 #' @param predicted Indices declaring which of the n elements should be predicted.
 #' @param predictors Indices declaring which of the n elements should be conditioned on.
 #'
@@ -143,25 +198,25 @@ get_pairs<- function(dag, x_parents) {
 #' @export
 conditional_normal<- function(
     x,
-    mu,
-    Sigma,
+    joint_mean,
+    joint_covariance,
     predicted = 1,
     predictors = tail(seq(nrow(x)), -1)
 ) {
   mode<- "numeric"
-  if( "advector" %in% class(Sigma) && requireNamespace("RTMB") ) mode<- "advector"
+  if( "advector" %in% class(joint_covariance) && requireNamespace("RTMB") ) mode<- "advector"
   if( length(predictors) == 0 ) {
     return(
       list(
-        mean = mu[predicted, , drop = FALSE],
-        covariance = Sigma[predicted, predicted, drop = FALSE]
+        mean = joint_mean[predicted, , drop = FALSE],
+        covariance = joint_covariance[predicted, predicted, drop = FALSE]
       )
     )
   } else {}
 
-  SigmaAA<- Sigma[predicted, predicted, drop = FALSE]
-  SigmaAB<- t(Sigma[predictors, predicted, drop = FALSE])
-  SigmaBB<- Sigma[predictors, predictors, drop = FALSE]
+  SigmaAA<- joint_covariance[predicted, predicted, drop = FALSE]
+  SigmaAB<- t(joint_covariance[predictors, predicted, drop = FALSE])
+  SigmaBB<- joint_covariance[predictors, predictors, drop = FALSE]
 
   if( mode == "advector" ) {
     SigmaAB_BBinv<- SigmaAB %*% RTMB::solve(SigmaBB)
@@ -170,7 +225,7 @@ conditional_normal<- function(
   }
   return(
     list(
-      mean = mu[predicted, , drop = FALSE] + SigmaAB_BBinv %*% (x[predictors, , drop = FALSE] - mu[predictors, , drop = FALSE]),
+      mean = joint_mean[predicted, , drop = FALSE] + SigmaAB_BBinv %*% (x[predictors, , drop = FALSE] - joint_mean[predictors, , drop = FALSE]),
       covariance = SigmaAA - SigmaAB_BBinv %*% t(SigmaAB)
     )
   )
