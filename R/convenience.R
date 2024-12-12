@@ -93,8 +93,8 @@ get_joint_covariance<- function(
         m_ij = spline$x_ij
       )
     }
+    Sigma[-1, 1]<- 0
   }
-  Sigma[-1, 1]<- 0
   Sigma<- Sigma + t(Sigma)
   diag_ind<- cbind(seq(nrow(Sigma)), seq(nrow(Sigma)))
   Sigma[diag_ind]<- Sigma[diag_ind] / 2
