@@ -1,22 +1,22 @@
-#' Find a set of nodes to cover a dataset
+#' Find a good set of nodes to cover a dataset
 #' 
 #' @param data A matrix of data points. Each row should be a data point.
 #' @param n_nodes The number of nodes to cover the dataset.
 #' @param max.it The number of iterations to use when finding the best set of nodes.
 #' @param jitter_magnitude The relative step size for randomly sampled jitters
 #' @param create_graph Should a directed acyclic graph between the nodes be returned?
-#' @param k If create_graph is TRUE, the number of parents for each node.
+#' @param n_parents If create_graph is TRUE, the number of parents for each node.
 #' 
-#' @return A list giving the nodes and the objective function trajectory.
+#' @return A list giving the nodes, the objective function trajectory, and possibly the node graph.
 #' 
 #' @export
-annodes<- function(
+nnodes<- function(
         data,
         n_nodes = 10,
         max.it = 100,
         jitter_magnitude = 0.0001,
         create_graph = TRUE,
-        k = 4
+        n_parents = 4
     ) {
     if( !requireNamespace("RANN", quietly = TRUE) ) stop("Must have the RANN package installed to use the annodes function.")
     if( !("matrix" %in% class(data)) ) data<- as.matrix(data)
@@ -114,7 +114,7 @@ annodes<- function(
     ans<- list(nodes = best_nodes, penalty = penalty_history)
     if( create_graph ) {
         ans$graph<- distance_matrix_to_dag(
-            dist(trans_nodes),
+            dist(nodes %*% transformer),
             k = n_parents
         )
     }
