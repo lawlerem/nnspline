@@ -22,4 +22,5 @@ Imports:
     stats,
     utils
 Suggests: 
+    RANN,
     RTMB
