@@ -9,7 +9,7 @@ nnodes(
   n_nodes = 10,
   max.it = 100,
   jitter_magnitude = 1e-04,
-  create_graph = TRUE,
+  create_graph = FALSE,
   n_parents = 4
 )
 }
@@ -27,7 +27,7 @@ nnodes(
 \item{n_parents}{If create_graph is TRUE, the number of parents for each node.}
 }
 \value{
-A list giving the nodes, the objective function trajectory, and possibly the node graph.
+A list giving the nodes, an LT matrix for computing mahalanobis distance, the objective function trajectory, and possibly the node graph.
 }
 \description{
 Find a good set of nodes to cover a dataset

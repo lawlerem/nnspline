@@ -7,7 +7,7 @@
 #' @param create_graph Should a directed acyclic graph between the nodes be returned?
 #' @param n_parents If create_graph is TRUE, the number of parents for each node.
 #' 
-#' @return A list giving the nodes, the objective function trajectory, and possibly the node graph.
+#' @return A list giving the nodes, an LT matrix for computing mahalanobis distance, the objective function trajectory, and possibly the node graph.
 #' 
 #' @export
 nnodes<- function(
@@ -15,7 +15,7 @@ nnodes<- function(
         n_nodes = 10,
         max.it = 100,
         jitter_magnitude = 0.0001,
-        create_graph = TRUE,
+        create_graph = FALSE,
         n_parents = 4
     ) {
     if( !requireNamespace("RANN", quietly = TRUE) ) stop("Must have the RANN package installed to use the annodes function.")
@@ -23,10 +23,10 @@ nnodes<- function(
     data<- data[complete.cases(data), , drop = FALSE]
 
     cov<- cov(data)
-    transformer<- symsqrt(cov, invert = TRUE)
-    trans_data<- data %*% transformer
+    LT<- symsqrt(cov, invert = TRUE)
+    trans_data<- data %*% LT
     find_nearest_distances<- function(nodes) {
-        trans_nodes<- nodes %*% transformer
+        trans_nodes<- nodes %*% LT
         data_to_node_d<- RANN::nn2(
             trans_nodes,
             trans_data,
@@ -111,16 +111,28 @@ nnodes<- function(
     penalty_history$penalty[i + 2]<- best_penalty
     penalty_history$operation[i + 2]<- "Best"
 
-    ans<- list(nodes = best_nodes, penalty = penalty_history)
+    ans<- list(
+        nodes = best_nodes,
+        LT = LT,
+        penalty = penalty_history
+    )
     if( create_graph ) {
         ans$graph<- distance_matrix_to_dag(
-            dist(nodes %*% transformer),
+            dist(nodes %*% LT),
             k = n_parents
         )
     }
     return(ans)
 }
 
+#' Compute symmetric square roots of positive definite matrices
+#' 
+#' @param m A positive definite matrix
+#' @param invert If TRUE, the take the symmetric square root of m^-1
+#' 
+#' @return A symmetric matrix x where x %*% x == m (or m^-1)
+#' 
+#' @export
 symsqrt<- function(m, invert = TRUE) {
     eig<- eigen(m)
     eig$values<- eig$values^(0.5 * ifelse(invert, -1, 1))

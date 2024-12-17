@@ -18,7 +18,8 @@ create_nnspline(
     exp(-d/range)
      return(cov)
  },
-  node_graph
+  node_graph,
+  LT = diag(ncol(x))
 )
 }
 \arguments{
@@ -33,16 +34,23 @@ create_nnspline(
 \item{covariance_function}{A function used to compute covariances between spline inputs. Should have the arguments x1 and x2, vectors giving the spline inputs, and p, a vector of parameters.}
 
 \item{node_graph}{An optional argument. If supplied, it needs to be an igraph object representing a directed acyclic graph.}
+
+\item{LT}{A Linear Transformation matrix to use when finding nearest neighbours (but not the covariance function).
+Input values will be transformed with x \%*\% LT.
+For Euclidean distance LT should be the identity matrix,
+for mahalanobis distance for a dataset D, LT should be equal to symqrt(cov(D), invert = TRUE).}
 }
 \value{
 A multispline object as a list with the following elements:
 \itemize{
 \item values The output values of the spline at x.
 \item x The locations at which the spline is evaluated.
+\item x_LT The linearly transformed x location, x \%*\% LT
 \item x_parents The nodes which are parents of each x.
 \item node_values The output values of the spline at the nodes.
 \item node_values_map Mapping indices for the node values. See ?TMB::MakeADFun.
 \item nodes The locations of the spline nodes.
+\item nodes_LT The linearly transformed node locations nodes \%*\% LT.
 \item node_graph An igraph directed acyclic graph represnting the node parent structure.
 \item parameters The parameters for the covariance function.
 \item parameter_map Mapping indices for the parameters. See ?TMB::MakeADFun.

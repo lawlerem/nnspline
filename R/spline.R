@@ -6,14 +6,20 @@
 #' @param parameters The parameters used in the covariance function.
 #' @param covariance_function A function used to compute covariances between spline inputs. Should have the arguments x1 and x2, vectors giving the spline inputs, and p, a vector of parameters.
 #' @param node_graph An optional argument. If supplied, it needs to be an igraph object representing a directed acyclic graph.
+#' @param LT A Linear Transformation matrix to use when finding nearest neighbours (but not the covariance function). 
+#'   Input values will be transformed with x %*% LT.
+#'   For Euclidean distance LT should be the identity matrix, 
+#'   for mahalanobis distance for a dataset D, LT should be equal to symqrt(cov(D), invert = TRUE).
 #'
 #' @return A multispline object as a list with the following elements:
 #'   - values The output values of the spline at x.
 #'   - x The locations at which the spline is evaluated.
+#'   - x_LT The linearly transformed x location, x %*% LT
 #'   - x_parents The nodes which are parents of each x.
 #'   - node_values The output values of the spline at the nodes.
 #'   - node_values_map Mapping indices for the node values. See ?TMB::MakeADFun.
 #'   - nodes The locations of the spline nodes.
+#'   - nodes_LT The linearly transformed node locations nodes %*% LT.
 #'   - node_graph An igraph directed acyclic graph represnting the node parent structure.
 #'   - parameters The parameters for the covariance function.
 #'   - parameter_map Mapping indices for the parameters. See ?TMB::MakeADFun.
@@ -34,15 +40,18 @@ create_nnspline<- function(
       cov<- variance * (1 + d / range) * exp( -d / range )
       return(cov)
     },
-    node_graph
+    node_graph,
+    LT = diag(ncol(x))
   ) {
   if( !("matrix" %in% class(x)) ) x<- matrix(x, ncol = 1)
   if( !("matrix" %in% class(nodes)) ) nodes<- matrix(nodes, ncol = 1)
 
-  t_nodes<- t(nodes)
+  x_LT<- x %*% LT
+  nodes_LT<- nodes %*% LT
+  t_nodes<- t(nodes_LT)
   x_parents<- t(
     apply(
-        x,
+        x_LT,
         MARGIN = 1,
         function(row) {
           d<- t_nodes - row
@@ -85,7 +94,7 @@ create_nnspline<- function(
 
   if( missing(node_graph) ) {
     node_graph<- distance_matrix_to_dag(
-        dist(nodes),
+        dist(nodes_LT),
         k = n_parents
     )
   }
@@ -100,11 +109,14 @@ create_nnspline<- function(
   spline<- list(
     values = numeric(nrow(x)),
     x = x,
+    x_LT = x_LT,
     x_parents = x_parents,
     node_values = numeric(nrow(nodes)),
     node_values_map = seq(nrow(nodes)),
     nodes = nodes,
+    nodes_LT = nodes_LT,
     node_graph = node_graph,
+    LT = LT,
     parameters = parameters,
     parameter_map = seq_along(parameters),
     covariance_function = covariance_function,
@@ -405,9 +417,9 @@ nns<- function(
       stop("The last dimension of x must be equal to the number of columns of spline$x.")
     }
   }
-  spline_x<- t(spline$x)
+  spline_x<- t(spline$x_LT)
   idx<- apply(
-    x,
+    x %*% spline$LT,
     MARGIN = seq(length(dim(x)) - 1),
     function(row) {
         if( any(is.na(row)) ) return(NA)
