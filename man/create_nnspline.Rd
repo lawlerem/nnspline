@@ -52,6 +52,8 @@ A multispline object as a list with the following elements:
 \item nodes The locations of the spline nodes.
 \item nodes_LT The linearly transformed node locations nodes \%*\% LT.
 \item node_graph An igraph directed acyclic graph represnting the node parent structure.
+\item LT A linear transformation matrix
+\item n_parents The number of parents for each location
 \item parameters The parameters for the covariance function.
 \item parameter_map Mapping indices for the parameters. See ?TMB::MakeADFun.
 \item covariance_function The function used to compute covariances between input points.

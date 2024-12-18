@@ -1,6 +1,6 @@
 Package: nnspline
 Title: Easy and computationally efficient splines
-Version: 1.3.1
+Version: 1.3.2
 Authors@R: 
     person("Ethan", "Lawler", , "lawlerem@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0002-6225-3009"))

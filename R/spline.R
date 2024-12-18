@@ -21,6 +21,8 @@
 #'   - nodes The locations of the spline nodes.
 #'   - nodes_LT The linearly transformed node locations nodes %*% LT.
 #'   - node_graph An igraph directed acyclic graph represnting the node parent structure.
+#'   - LT A linear transformation matrix
+#'   - n_parents The number of parents for each location
 #'   - parameters The parameters for the covariance function.
 #'   - parameter_map Mapping indices for the parameters. See ?TMB::MakeADFun.
 #'   - covariance_function The function used to compute covariances between input points.
@@ -117,6 +119,7 @@ create_nnspline<- function(
     nodes_LT = nodes_LT,
     node_graph = node_graph,
     LT = LT,
+    n_parents = n_parents,
     parameters = parameters,
     parameter_map = seq_along(parameters),
     covariance_function = covariance_function,
