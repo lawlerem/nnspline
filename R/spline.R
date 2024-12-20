@@ -51,48 +51,28 @@ create_nnspline<- function(
   x_LT<- x %*% LT
   nodes_LT<- nodes %*% LT
   t_nodes<- t(nodes_LT)
-  x_parents<- t(
-    apply(
-        x_LT,
-        MARGIN = 1,
-        function(row) {
-          d<- t_nodes - row
-          d<- sqrt(colSums(d^2))
-          if( any( d < .Machine$double.eps ) ) {
-            p<- which( d < .Machine$double.eps )[[1]] # There shouldn't be more than one, but just to be safe
-            d[-p]<- 0
-            d[p]<- -1
-          } else {
-            p<- order(d)[1:n_parents]
-            p<- p[!is.na(p)]
-            d[-p]<- 0
-            d[p]<- 1
-          }
-          return(d)
-        }
-    )
+  x_parents<- apply(
+    x_LT,
+    MARGIN = 1,
+    function(row) {
+      d<- t_nodes - row
+      d<- sqrt(colSums(d^2))
+      if( any( d < .Machine$double.eps ) ) {
+        p<- -which( d < .Machine$double.eps )[[1]] # There shouldn't be more than one, but just to be safe
+      } else {
+        p<- order(d)[1:n_parents]
+        p<- p[!is.na(p)]
+      }
+      return(p)
+    }
   )
-
-  x_parents<- Matrix::Matrix(x_parents, sparse = TRUE, doDiag = FALSE)
-  x_covariance<- x_parents
-
-  ind<- (x_parents@x == 1)
-  mat_i<- x_covariance@i[ind]
-  mat_i<- c(mat_i, unique(mat_i))
-  mat_j<- c(
-    ip_to_j(x_covariance@i, x_covariance@p)[ind] + 1,
-    rep(0, length(unique(mat_i)))
+  x_covariance<- lapply(
+    x_parents,
+    function(p) {
+      if( (length(p) == 1) && (p < 0) ) return(NA)
+      return(numeric(length(p)))
+    }
   )
-  mat_x<- c(
-    x_covariance@x[ind],
-    rep(1, length(unique(mat_i)))
-  )
-  x_covariance<- Matrix::sparseMatrix(
-    i = mat_i + 1,
-    j = mat_j + 1,
-    x = mat_x
-  )
-  x_ij<- x_covariance@i + ip_to_j(x_covariance@i, x_covariance@p) * x_covariance@Dim[[1]]
 
   if( missing(node_graph) ) {
     node_graph<- distance_matrix_to_dag(
@@ -101,12 +81,7 @@ create_nnspline<- function(
     )
   }
   node_pairs<- get_pairs(node_graph, x_parents)
-  node_covariance<- Matrix::sparseMatrix(
-      i = node_pairs$i,
-      j = node_pairs$j,
-      x = rep(1, nrow(node_pairs))
-    )
-  node_ij<- node_covariance@i + ip_to_j(node_covariance@i, node_covariance@p) * node_covariance@Dim[[1]]
+  node_covariance<- matrix(-Inf, nrow = nrow(nodes), ncol = nrow(nodes))
 
   spline<- list(
     values = numeric(nrow(x)),
@@ -124,18 +99,28 @@ create_nnspline<- function(
     parameter_map = seq_along(parameters),
     covariance_function = covariance_function,
     x_covariance = x_covariance,
-    x_ij = x_ij,
     node_covariance = node_covariance,
-    node_ij = node_ij
+    node_pairs = node_pairs
   )
-  spline<- update_spline_covariance(
+  spline<- update_spline(spline)
+  return(spline)
+}
+
+#' Update a spline based on node values and parameters values
+#'
+#' @param spline An nnspline
+#' @param ... Used to pass arguments onto sub-functions.
+#'
+#' @return An updated copy of the spline.
+#'
+#' @export
+update_spline<- function(
     spline,
-    spline$parameters
-  )
-  spline<- update_spline_values(
-    spline,
-    spline$node_values
-  )
+    ...
+  ) {
+  spline<- update_spline_covariance(spline, ...)
+  spline<- update_spline_values(spline, ...)
+
   return(spline)
 }
 
@@ -154,59 +139,55 @@ update_spline_covariance<- function(
   ) {
   if( !missing(parameters) ) spline$parameters<- parameters
   mode<- "numeric"
-  if( "advector" %in% class(spline$parameters) && requireNamespace("RTMB") ) mode<- "advector"
-  if( mode == "advector" ) {
-    RTMB::ADoverload()
-    spline$x_covariance<- as(spline$x_covariance, "adsparse")
-    spline$node_covariance<- as(spline$node_covariance, "adsparse")
-  } else {}
+  if( "advector" %in% class(spline$parameters) && requireNamespace("RTMB") ) {
+    mode<- "advector"
+    spline$x_covariance<- lapply(
+      spline$x_covariance,
+      RTMB::AD,
+      force = TRUE
+    )
+    spline$node_covariance<- RTMB::AD(spline$node_covariance, force = TRUE)
+  }
 
-  node_m<- cbind(
-    spline$node_covariance@i + 1,
-    ip_to_j(spline$node_covariance@i, spline$node_covariance@p) + 1
-  )
-  covs<- apply(
-    node_m,
+  covs<- RTMB::apply(
+    spline$node_pairs,
     MARGIN = 1,
-    function(row) {
-      cov<- spline$covariance_function(
-        spline$nodes[row[[1]], ],
-        spline$nodes[row[[2]], ],
-        spline$parameters
-      )
-      return( cov )
-    },
+    function(pair) spline$covariance_function(
+      spline$nodes[pair[[1]], ],
+      spline$nodes[pair[[2]], ],
+      spline$parameters
+    ),
     simplify = FALSE
   )
-  spline$node_covariance@x<- do.call(c, covs)
-
+  covs<- do.call(c, covs)
+  spline$node_covariance[spline$node_pairs]<- covs
+  spline$node_covariance[spline$node_pairs[, c(2, 1)]]<- covs
   if( only_node_covariance ) return(spline)
 
-  if( any(spline$x_parents@x != -1) ) {
-    x_m<- cbind(
-      spline$x_covariance@i + 1,
-      ip_to_j(spline$x_covariance@i, spline$x_covariance@p) + 1
-    )
-    covs<- apply(
-      x_m,
-      MARGIN = 1,
-      function(row) {
-        if( row[[2]] == 1 ) {
-          loc2<- spline$x[row[[1]], ]
-        } else {
-          loc2<- spline$nodes[row[[2]] - 1, ]
-        }
-        cov<- spline$covariance_function(
-          spline$x[row[[1]], ],
-          loc2,
+
+  spline$x_covariance<- lapply(
+    seq(length(spline$x_parents)),
+    function(xi) {
+      p<- spline$x_parents[[xi]]
+      if( (length(p) == 1) && (p < 0) ) return(NA)
+      self_cov<- spline$covariance_function(
+        spline$x[xi, ],
+        spline$x[xi, ],
+        spline$parameters
+      )
+      parent_cov<- sapply(
+        p,
+        function(nodei) spline$covariance_function(
+          spline$x[xi, ],
+          spline$nodes[nodei, ],
           spline$parameters
-        )
-        return(cov)
-      },
-      simplify = FALSE
-    )
-    spline$x_covariance@x<- do.call(c, covs)
-  } else {}
+        ),
+        simplify = FALSE
+      )
+      parent_cov<- do.call(c, parent_cov)
+      return(c(self_cov, parent_cov))
+    }
+  )
 
   return(spline)
 }
@@ -224,76 +205,35 @@ update_spline_values<- function(
           ) {
   if( !missing(node_values) ) spline$node_values<- node_values
   mode<- "numeric"
-  if( "advector" %in% class(spline$node_values) && requireNamespace("RTMB") ) mode<- "advector"
-  if( mode == "advector" ) spline$values<- RTMB::advector(spline$values)
+  if( "advector" %in% class(spline$node_values) && requireNamespace("RTMB") ) {
+    mode<- "advector"
+    spline$values<- RTMB::AD(spline$values)
+  }
 
-  x_type<- apply(
-    spline$x_parents,
-    MARGIN = 1,
-    function(parents) any(parents == -1)
+  ans<- sapply(
+    seq(nrow(spline$x)),
+    function(xi) {
+      p<- spline$x_parents[[xi]]
+      if( (length(p) == 1) && (p < 0) ) return(spline$node_values[abs(p)])
+
+      Sigma<- spline$node_covariance[
+        c(1, p),
+        c(1, p)
+      ]
+      Sigma[1, ]<- spline$x_covariance[[xi]]
+      Sigma[, 1]<- spline$x_covariance[[xi]]
+      cmvn<- conditional_normal(
+        x = cbind(c(spline$values[xi], spline$node_values[p])),
+        joint_mean = cbind(numeric(length(p) + 1)),
+        joint_covariance = Sigma,
+        predicted = 1,
+        predictors = seq_along(p) + 1
+      )
+      return( cmvn$mean )
+    },
+    simplify = FALSE
   )
-  # Update x values that are actually node values
-  node_x<- which(x_type)
-  node_x_parents<- apply(
-    spline$x_parents[node_x, , drop = FALSE],
-    MARGIN = 1,
-    function(parents) which(parents == -1)
-  )
-  spline$values[node_x]<- spline$node_values[node_x_parents]
-
-  # Update x values that are between nodes
-  no_node_x<- which(!x_type)
-  if( length(no_node_x) > 0 ) {
-    no_node_parents<- apply(
-      spline$x_parents[no_node_x, ],
-      MARGIN = 1,
-      function(parents) return(which(parents == 1)),
-      simplify = FALSE
-    )
-
-    no_node_prediction<- lapply(
-      seq_along(no_node_x),
-      function(i) {
-        p<- no_node_parents[[i]]
-        Sigma<- get_joint_covariance(
-          spline,
-          no_node_x[[i]],
-          p,
-          prediction_type = "x",
-          mode = mode
-        )
-        cmvn<- conditional_normal(
-          x = cbind(c(spline$values[i], spline$node_values[p])),
-          joint_mean = cbind(numeric(length(p) + 1)),
-          joint_covariance = Sigma,
-          predicted = 1,
-          predictors = seq_along(p) + 1
-        )
-        return(cmvn$mean)
-      }
-    )
-    spline$values[no_node_x]<- do.call(c, no_node_prediction)
-  } else {}
-
-  return(spline)
-}
-
-
-#' Update a spline based on node values and parameters values
-#'
-#' @param spline An nnspline
-#' @param ... Used to pass arguments onto sub-functions.
-#'
-#' @return An updated copy of the spline.
-#'
-#' @export
-update_spline<- function(
-    spline,
-    ...
-  ) {
-  spline<- update_spline_covariance(spline, ...)
-  spline<- update_spline_values(spline, ...)
-
+  spline$values<- do.call(c, ans)
   return(spline)
 }
 
@@ -314,13 +254,7 @@ dspline<- function(x, spline, log = TRUE) {
   ll<- 0
   for( i in node_order ) {
     p<- as.numeric(igraph::neighbors(spline$node_graph, i, "in"))
-    Sigma<- get_joint_covariance(
-      spline,
-      i,
-      p,
-      prediction_type = "node",
-      mode = mode
-    )
+    Sigma<- spline$node_covariance[c(i, p), c(i, p), drop = FALSE]
     cmvn<- conditional_normal(
       cbind(x[c(i, p)]),
       cbind(0 * spline$node_values[c(i, p)]),
@@ -348,15 +282,15 @@ dspline<- function(x, spline, log = TRUE) {
 
 #' Simulate a spline
 #' 
-#' @param n The number of samples
 #' @param spline The spline to simulate from
+#' @param n The number of samples
 #' 
-#' @return A list of length n with the simulated splines
+#' @return A list of length n with the simulated splines. If n == 1 then the spline will be returned not in a list.
 #' 
 #' @export
 rspline<- function(
-    n = 1,
-    spline
+    spline,
+    n = 1
   ) {
   spline<- update_spline_covariance(spline)
   node_values<- matrix(
@@ -367,13 +301,7 @@ rspline<- function(
   node_order<- as.numeric(igraph::topo_sort(spline$node_graph))
   for( i in node_order ) {
     p<- as.numeric(igraph::neighbors(spline$node_graph, i, "in"))
-    Sigma<- get_joint_covariance(
-      spline,
-      i,
-      p,
-      prediction_type = "node",
-      mode = "numeric"
-    )
+    Sigma<- spline$node_covariance[c(i, p), c(i, p), drop = FALSE]
     cmvn<- conditional_normal(
       node_values[c(i, p), , drop = FALSE],
       0 * node_values[c(i, p), , drop = FALSE],
@@ -391,6 +319,7 @@ rspline<- function(
     function(i) update_spline_values(spline, node_values[, i])
   )
 
+  if( length(sims) == 1 ) sims<- sims[[1]]
   return(sims)
 }
 

@@ -9,8 +9,7 @@ get_pairs(dag, x_parents)
 \arguments{
 \item{dag}{An directed acyclic graph as an igraph object}
 
-\item{x_parents}{A sparse matrix which has a 1 in entry (i, j) if
-node i is a parent of x[j]}
+\item{x_parents}{A list of sets of parent nodes}
 }
 \value{
 A data.frame giving the list of every node

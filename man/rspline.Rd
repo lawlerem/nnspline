@@ -4,15 +4,15 @@
 \alias{rspline}
 \title{Simulate a spline}
 \usage{
-rspline(n = 1, spline)
+rspline(spline, n = 1)
 }
 \arguments{
-\item{n}{The number of samples}
-
 \item{spline}{The spline to simulate from}
+
+\item{n}{The number of samples}
 }
 \value{
-A list of length n with the simulated splines
+A list of length n with the simulated splines. If n == 1 then the spline will be returned not in a list.
 }
 \description{
 Simulate a spline
