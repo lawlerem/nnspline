@@ -64,7 +64,8 @@ create_nnspline<- function(
         p<- p[!is.na(p)]
       }
       return(p)
-    }
+    },
+    simplify = FALSE
   )
   x_covariance<- lapply(
     x_parents,
@@ -149,7 +150,7 @@ update_spline_covariance<- function(
     spline$node_covariance<- RTMB::AD(spline$node_covariance, force = TRUE)
   }
 
-  covs<- RTMB::apply(
+  covs<- apply(
     spline$node_pairs,
     MARGIN = 1,
     function(pair) spline$covariance_function(
@@ -162,6 +163,7 @@ update_spline_covariance<- function(
   covs<- do.call(c, covs)
   spline$node_covariance[spline$node_pairs]<- covs
   spline$node_covariance[spline$node_pairs[, c(2, 1)]]<- covs
+
   if( only_node_covariance ) return(spline)
 
 
@@ -207,7 +209,7 @@ update_spline_values<- function(
   mode<- "numeric"
   if( "advector" %in% class(spline$node_values) && requireNamespace("RTMB") ) {
     mode<- "advector"
-    spline$values<- RTMB::AD(spline$values)
+    spline$values<- RTMB::AD(spline$values, force = TRUE)
   }
 
   ans<- sapply(
