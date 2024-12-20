@@ -96,7 +96,10 @@ conditional_normal<- function(
     predictors = tail(seq(nrow(x)), -1)
 ) {
   mode<- "numeric"
-  if( "advector" %in% class(joint_covariance) && requireNamespace("RTMB") ) mode<- "advector"
+  if( "advector" %in% class(joint_covariance) && requireNamespace("RTMB") ) {
+    mode<- "advector"
+    solve<- RTMB::solve
+  }
   if( length(predictors) == 0 ) {
     return(
       list(
@@ -109,12 +112,7 @@ conditional_normal<- function(
   SigmaAA<- joint_covariance[predicted, predicted, drop = FALSE]
   SigmaAB<- t(joint_covariance[predictors, predicted, drop = FALSE])
   SigmaBB<- joint_covariance[predictors, predictors, drop = FALSE]
-
-  if( mode == "advector" ) {
-    SigmaAB_BBinv<- SigmaAB %*% RTMB::solve(SigmaBB)
-  } else {
-    SigmaAB_BBinv<- SigmaAB %*% solve(SigmaBB)
-  }
+  SigmaAB_BBinv<- t(solve(SigmaBB, t(SigmaAB)))
   return(
     list(
       mean = joint_mean[predicted, , drop = FALSE] + SigmaAB_BBinv %*% (x[predictors, , drop = FALSE] - joint_mean[predictors, , drop = FALSE]),
