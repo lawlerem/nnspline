@@ -47,6 +47,7 @@ create_nnspline<- function(
   ) {
   if( !("matrix" %in% class(x)) ) x<- matrix(x, ncol = 1)
   if( !("matrix" %in% class(nodes)) ) nodes<- matrix(nodes, ncol = 1)
+  n_parents<- min(n_parents, nrow(nodes))
 
   x_LT<- x %*% LT
   nodes_LT<- nodes %*% LT
@@ -57,12 +58,10 @@ create_nnspline<- function(
     function(row) {
       d<- t_nodes - row
       d<- sqrt(colSums(d^2))
-      if( any( d < .Machine$double.eps ) ) {
-        p<- -which( d < .Machine$double.eps )[[1]] # There shouldn't be more than one, but just to be safe
-      } else {
-        p<- order(d)[1:n_parents]
-        p<- p[!is.na(p)]
-      }
+      d_sort<- sort(d, partial = n_parents)
+      p<- which(d <= d_sort[n_parents])
+      # The negative sign means that x is EQUAL to node[p,]
+      if( any(d[p] <= .Machine$double.eps) ) p<- -p[which.min(d[p])]
       return(p)
     },
     simplify = FALSE

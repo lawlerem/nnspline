@@ -16,11 +16,9 @@ distance_matrix_to_dag<- function(d, k = 4) {
   while( any(is.na(order)) ) {
     order[i]<- which.min(min_d)
     min_d[order[i]]<- Inf
-    min_d[-order[seq(i)]]<- ifelse(
-      min_d[-order[seq(i)]] < d[order[i], -order[seq(i)]],
-      min_d[-order[seq(i)]],
-      d[order[i], -order[seq(i)]]
-    )
+    new_d<- d[order[i], -order[seq(i)]]
+    replace_idx<- (new_d < min_d[-order[seq(i)]])
+    min_d[-order[seq(i)]][replace_idx]<- new_d[replace_idx]
     i<- i + 1
   }
 
