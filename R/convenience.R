@@ -6,19 +6,45 @@
 #' @return A directed acyclic graph from the igraph package
 distance_matrix_to_dag<- function(d, k = 4) {
   if( "dist" %in% class(d) ) d<- as.matrix(d)
-  dag<- .distance_matrix_to_dag(d, k) # from Rcpp nnspline.cpp
-  order<- dag$order
-  parents<- dag$parent_list
+  order<- rep(NA, nrow(d))
+  min_d<- numeric(nrow(d))
+  order[1]<- 1
+  min_d[1]<- Inf
+  min_d[-1]<- d[1, -1]
+  
+  i<- 2
+  while( any(is.na(order)) ) {
+    order[i]<- which.min(min_d)
+    min_d[order[i]]<- Inf
+    min_d[-order[seq(i)]]<- ifelse(
+      min_d[-order[seq(i)]] < d[order[i], -order[seq(i)]],
+      min_d[-order[seq(i)]],
+      d[order[i], -order[seq(i)]]
+    )
+    i<- i + 1
+  }
+
+  parent_list<- vector(mode = "list", nrow(d))
+  parent_list[order]<- lapply(
+    seq(nrow(d)),
+    function(i) {
+      if( i == 1 ) return(numeric(0))
+      k<- min(k, i - 1)
+      parent_d<- d[order[i], order[seq_len(i - 1)]]
+      partial_sort<- sort(parent_d, partial = k)
+      parents<- which(parent_d <= partial_sort[k])
+      return( order[parents] )
+    }
+  )
+
   m<- matrix(
     0,
-    nrow = length(order),
-    ncol = length(order)
+    nrow = nrow(d),
+    ncol = nrow(d)
   )
-  for( i in seq_along(parents) ) {
-    m[parents[[i]], i]<- 1
+  for( i in seq(nrow(d)) ) {
+    m[parent_list[[i]], i]<- 1
   }
-  inverse_order<- seq_along(order)[order(order)]
-  m<- m[inverse_order, inverse_order]
   dag<- igraph::graph_from_adjacency_matrix(m, mode = "directed")
   return(dag)
 }

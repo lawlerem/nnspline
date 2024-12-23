@@ -1,10 +1,12 @@
-#include <RcppEigen.h>
 // [[Rcpp::depends(RcppEigen)]]
-
+// [[Rcpp::depends(RcppClock)]]
+#include <RcppClock.h>
+#include <RcppEigen.h>
 
 
 // [[Rcpp::export("order_d_matrix")]]
 Eigen::VectorXi order_d_matrix(Eigen::MatrixXd &d) {
+  Rcpp::Clock clock;
   Eigen::VectorXi order = Eigen::VectorXi::LinSpaced(
     d.rows(),
     0,
@@ -13,13 +15,18 @@ Eigen::VectorXi order_d_matrix(Eigen::MatrixXd &d) {
   int minParent, minChild;
   for(int i = 1; i < d.rows(); i++) {
     // Find least distance
+    clock.tick("minCoeff");
     d.topRightCorner(i, d.cols() - i).minCoeff(&minParent, &minChild);
+    clock.tock("minCoeff");
     minChild += i;
     // Put closest node next
+    clock.tick("swap");
     d.row(i).swap(d.row(minChild));
     d.col(i).swap(d.col(minChild));
     std::iter_swap(order.data() + i, order.data() + minChild);
+    clock.tock("swap");
   }
+  clock.stop("order_d_matrix_times");
   return order;
 }
 
@@ -82,12 +89,17 @@ Eigen::VectorXi lowest_k(const Eigen::VectorXd &d, int k) {
 
 // [[Rcpp::export(".distance_matrix_to_dag")]]
 Rcpp::List distance_matrix_to_dag(const Eigen::Map<Eigen::MatrixXd> &d, const int n_neighbours) {
+  Rcpp::Clock clock;
+
+  clock.tick("order_d_matrix");
   Eigen::MatrixXd sorted_d = d;
   // Returns order, and sorts ordered_d
   Eigen::VectorXi order = order_d_matrix(sorted_d);
+  clock.tock("order_d_matrix");
 
   int dagSize = d.cols();
 
+  clock.tick("parent_list");
   Rcpp::List parent_list(dagSize);
   // std::vector<Eigen::VectorXi> edge_list(dagSize);
   parent_list[0] = Eigen::VectorXi(0);
@@ -105,7 +117,9 @@ Rcpp::List distance_matrix_to_dag(const Eigen::Map<Eigen::MatrixXd> &d, const in
   for(int i = 0; i < order.size(); i++) {
     order(i) += 1;
   }
+  clock.tock("parent_list");
 
+  clock.stop("distance_to_dag_times");
   return Rcpp::List::create(
     Rcpp::Named("order") = order,
     Rcpp::Named("parent_list") = parent_list
