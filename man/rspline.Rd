@@ -12,7 +12,9 @@ rspline(spline, n = 1)
 \item{n}{The number of samples}
 }
 \value{
-A list of length n with the simulated splines. If n == 1 then the spline will be returned not in a list.
+\if{html}{\out{<div class="sourceCode">}}\preformatted{A list of length n with the simulated splines. If n == 1 then the 
+spline will be returned not in a list.
+}\if{html}{\out{</div>}}
 }
 \description{
 Simulate a spline

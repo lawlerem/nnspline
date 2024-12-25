@@ -1,13 +1,21 @@
 #' Find a good set of nodes to cover a dataset
 #' 
-#' @param data A matrix of data points. Each row should be a data point.
-#' @param n_nodes The number of nodes to cover the dataset.
-#' @param max.it The number of iterations to use when finding the best set of nodes.
-#' @param jitter_magnitude The relative step size for randomly sampled jitters
-#' @param create_graph Should a directed acyclic graph between the nodes be returned?
-#' @param n_parents If create_graph is TRUE, the number of parents for each node.
+#' @param data 
+#'     A matrix of data points. Each row should be a data point.
+#' @param n_nodes 
+#'     The number of nodes to cover the dataset.
+#' @param max.it 
+#'     The number of iterations to use when finding the best set of nodes.
+#' @param jitter_magnitude 
+#'     The relative step size for randomly sampled jitters
+#' @param create_graph 
+#'     Should a directed acyclic graph between the nodes be returned?
+#' @param n_parents 
+#'     If create_graph is TRUE, the number of parents for each node.
 #' 
-#' @return A list giving the nodes, an LT matrix for computing mahalanobis distance, the objective function trajectory, and possibly the node graph.
+#' @return 
+#'     A list giving the nodes, an LT matrix for computing mahalanobis distance,
+#'     the objective function trajectory, and possibly the node graph.
 #' 
 #' @export
 nnodes<- function(
@@ -18,12 +26,14 @@ nnodes<- function(
         create_graph = FALSE,
         n_parents = 4
     ) {
-    if( !requireNamespace("RANN", quietly = TRUE) ) stop("Must have the RANN package installed to use the annodes function.")
-    if( !("matrix" %in% class(data)) ) data<- as.matrix(data)
-    data<- data[complete.cases(data), , drop = FALSE]
+    if( !requireNamespace("RANN", quietly = TRUE) ) {
+        stop("Must have the RANN package installed to use the annodes function.")
+    }
+    if( !("matrix" %in% class(data)) ) data<- data |> as.matrix()
+    data<- data[data |> complete.cases(), , drop = FALSE]
 
-    cov<- cov(data)
-    LT<- symsqrt(cov, invert = TRUE)
+    cov<- data |> cov()
+    LT<- cov |> symsqrt(invert = TRUE)
     trans_data<- data %*% LT
     find_nearest_distances<- function(nodes) {
         trans_nodes<- nodes %*% LT
@@ -50,15 +60,19 @@ nnodes<- function(
             )
         )
     }
-    penalty_function<- function(dlist) mean(dlist$data_to_node) + mean(dlist$node_to_data) - mean(dlist$node_to_node)
+    penalty_function<- function(dlist) {
+        mean(dlist$data_to_node) + 
+            mean(dlist$node_to_data) - 
+            mean(dlist$node_to_node)
+    }
 
     penalty_history<- data.frame(
         penalty = numeric(max.it + 2),
         operation = ""
     )
-    nodes<- data[sample(nrow(data), size = n_nodes), , drop = FALSE]
-    dlist<- find_nearest_distances(nodes)
-    penalty<- penalty_function(dlist)
+    nodes<- data[data |> nrow() |> sample(size = n_nodes), , drop = FALSE]
+    dlist<- nodes |> find_nearest_distances()
+    penalty<- dlist |> penalty_function()
     best_nodes<- nodes
     best_penalty<- penalty
     penalty_history$penalty[1]<- penalty
@@ -75,21 +89,22 @@ nnodes<- function(
         )
         new_nodes<- nodes
         if( "Jitter" %in% operation ) {
-            new_nodes<- jitter(
-                nodes,
-                jitter_magnitude,
-                cov
-            )
+            new_nodes<- nodes |>
+                jitter(
+                    jitter_magnitude,
+                    cov
+                )
         }
         if( "Replace" %in% operation ) {
-            new_nodes<- replace(
-                nodes,
-                data,
-                dlist
-            )
+            new_nodes<- nodes |>
+                replace(
+                    nodes,
+                    data,
+                    dlist
+                )
         }
-        new_dlist<- find_nearest_distances(new_nodes)
-        new_penalty<- penalty_function(new_dlist)
+        new_dlist<- new_nodes |> find_nearest_distances()
+        new_penalty<- new_dlist |> penalty_function()
         if( accept(new_penalty, penalty, T, 0.1) ) {
             nodes<- new_nodes
             penalty<- new_penalty
@@ -105,7 +120,7 @@ nnodes<- function(
             operation<- "Restart"
         }
         penalty_history$penalty[i + 1]<- penalty
-        penalty_history$operation[i + 1]<- paste(operation, collapse = "")
+        penalty_history$operation[i + 1]<- operation |> paste(collapse = "")
     }
     nodes<- best_nodes
     penalty_history$penalty[i + 2]<- best_penalty
@@ -117,24 +132,31 @@ nnodes<- function(
         penalty = penalty_history
     )
     if( create_graph ) {
-        ans$graph<- distance_matrix_to_dag(
-            dist(nodes %*% LT),
-            k = n_parents
-        )
+        ans$graph<- (nodes %*% LT) |> 
+            dist() |> 
+            distance_matrix_to_dag(
+                k = n_parents
+            )
     }
-    return(ans)
+    return( ans )
 }
 
 #' Compute symmetric square roots of positive definite matrices
 #' 
-#' @param m A positive definite matrix
-#' @param invert If TRUE, the take the symmetric square root of m^-1
+#' @param m 
+#'     A positive definite matrix
+#' @param invert 
+#'     If TRUE, the take the symmetric square root of m^-1
 #' 
-#' @return A symmetric matrix x where x %*% x == m (or m^-1)
+#' @return 
+#'     A symmetric matrix x where x %*% x == m (or m^-1)
 #' 
 #' @export
-symsqrt<- function(m, invert = TRUE) {
-    eig<- eigen(m)
+symsqrt<- function(
+        m,
+        invert = TRUE
+    ) {
+    eig<- m |> eigen(m)
     eig$values<- eig$values^(0.5 * ifelse(invert, -1, 1))
     ans<- eig$vectors %*% diag(eig$values) %*% t(eig$vector)
     return(ans)

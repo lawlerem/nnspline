@@ -1,6 +1,6 @@
 Package: nnspline
 Title: Easy and computationally efficient splines
-Version: 1.4.0
+Version: 1.4.1
 Authors@R: 
     person("Ethan", "Lawler", , "lawlerem@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0002-6225-3009"))
@@ -19,3 +19,5 @@ Imports:
 Suggests: 
     RANN,
     RTMB
+Depends: 
+    R (>= 4.1.0)

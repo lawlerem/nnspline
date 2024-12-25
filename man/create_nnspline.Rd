@@ -23,7 +23,8 @@ create_nnspline(
 )
 }
 \arguments{
-\item{x}{A numeric matrix giving the locations (as rows) for which the spline values are desired}
+\item{x}{A numeric matrix giving the locations (as rows) for which the spline
+values are desired}
 
 \item{nodes}{A numeric matrix giving the spline knot locations as rows.}
 
@@ -31,34 +32,67 @@ create_nnspline(
 
 \item{parameters}{The parameters used in the covariance function.}
 
-\item{covariance_function}{A function used to compute covariances between spline inputs. Should have the arguments x1 and x2, vectors giving the spline inputs, and p, a vector of parameters.}
+\item{covariance_function}{A function used to compute covariances between spline inputs.
+Should have the arguments x1 and x2, vectors giving the spline inputs,
+and p, a vector of parameters.}
 
-\item{node_graph}{An optional argument. If supplied, it needs to be an igraph object representing a directed acyclic graph.}
+\item{node_graph}{An optional argument. If supplied, it needs to be an igraph object
+representing a directed acyclic graph.}
 
-\item{LT}{A Linear Transformation matrix to use when finding nearest neighbours (but not the covariance function).
-Input values will be transformed with x \%*\% LT.
-For Euclidean distance LT should be the identity matrix,
-for mahalanobis distance for a dataset D, LT should be equal to symqrt(cov(D), invert = TRUE).}
+\item{LT}{A Linear Transformation matrix to use when finding nearest neighbours
+(but not the covariance function). Input values will be transformed with
+x \%*\% LT. For Euclidean distance LT should be the identity matrix, for
+mahalanobis distance for a dataset D, LT should be equal to
+symqrt(cov(D), invert = TRUE).}
 }
 \value{
-A multispline object as a list with the following elements:
+\if{html}{\out{<div class="sourceCode">}}\preformatted{A multispline object as a list with the following elements:
+}\if{html}{\out{</div>}}
 \itemize{
-\item values The output values of the spline at x.
-\item x The locations at which the spline is evaluated.
-\item x_LT The linearly transformed x location, x \%*\% LT
-\item x_parents The nodes which are parents of each x.
-\item node_values The output values of the spline at the nodes.
-\item node_values_map Mapping indices for the node values. See ?TMB::MakeADFun.
-\item nodes The locations of the spline nodes.
-\item nodes_LT The linearly transformed node locations nodes \%*\% LT.
-\item node_graph An igraph directed acyclic graph represnting the node parent structure.
-\item LT A linear transformation matrix
-\item n_parents The number of parents for each location
-\item parameters The parameters for the covariance function.
-\item parameter_map Mapping indices for the parameters. See ?TMB::MakeADFun.
-\item covariance_function The function used to compute covariances between input points.
-\item x_covariance Sparse covariance matrices for the spline x values.
-\item node_covariance Sparse covariance matrices for the spline nodes.
+\item values
+The output values of the spline at x.
+\item x
+The locations at which the spline is evaluated.
+\item x_LT
+The linearly transformed x location, x \%*\% LT
+\item x_parents
+The nodes which are parents of each x. If a parent is a negative value
+then the node value of that parent is taken to be the corresponding
+x value.
+\item node_values
+The output values of the spline at the nodes.
+\item node_values_map
+Mapping indices for the node values. See ?TMB::MakeADFun.
+\item nodes
+The locations of the spline nodes.
+\item nodes_LT
+The linearly transformed node locations nodes \%*\% LT.
+\item node_graph
+An igraph directed acyclic graph represnting the node parent structure.
+\item LT
+A linear transformation matrix
+\item n_parents
+The number of parents for each location
+\item parameters
+The parameters for the covariance function.
+\item parameter_map
+Mapping indices for the parameters. See ?TMB::MakeADFun.
+\item covariance_function
+The function used to compute covariances between input points.
+It should take argument d1 and d2, each of which represents a row
+of either spline$x or spline$nodes, and an argument p giving
+the parameters of the covariance function.
+\item x_covariance
+A list giving the covariance between x its parents. The first element
+of each is the covariance of x with itself.
+\item node_covariance
+A partially filled in covariance matrix for the spline nodes. Only the
+elements that are needed to either compute the spline likelihood or
+update the spline values are filled in, all other entries are set
+equal to -Inf.
+\item node_pairs
+A matrix giving the indices of node_covariance that need to be
+filled in.
 }
 }
 \description{

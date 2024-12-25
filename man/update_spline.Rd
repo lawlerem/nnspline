@@ -15,18 +15,21 @@ update_spline_values(spline, node_values, ...)
 \arguments{
 \item{spline}{An nnspline}
 
-\item{...}{Used to pass arguments onto sub-functions.}
+\item{...}{Used to pass arguments onto update_spline_covariance and
+update_spline_values.}
 
-\item{parameters}{The new parameters for the spline. If missing, will
-use the pre-existing parameters stored in the spline.}
+\item{parameters}{The new parameters for the spline. If missing, will use the pre-existing
+parameters stored in the spline.}
 
-\item{only_node_covariance}{Logical. If TRUE, the cross-covariance matrix between x and nodes will not be updated.}
+\item{only_node_covariance}{Logical. If TRUE, the cross-covariance matrix between x and nodes will
+not be updated.}
 
-\item{node_values}{The new new values for the spline. If missing, will use
-the pre-existing node values stored in the spline.}
+\item{node_values}{The new new values for the spline. If missing, will use the pre-existing
+node values stored in the spline.}
 }
 \value{
-An updated copy of the spline.
+\if{html}{\out{<div class="sourceCode">}}\preformatted{An updated copy of the spline.
+}\if{html}{\out{</div>}}
 }
 \description{
 Update a spline based on node values and parameters values

@@ -12,7 +12,8 @@ symsqrt(m, invert = TRUE)
 \item{invert}{If TRUE, the take the symmetric square root of m^-1}
 }
 \value{
-A symmetric matrix x where x \%*\% x == m (or m^-1)
+\if{html}{\out{<div class="sourceCode">}}\preformatted{A symmetric matrix x where x \%*\% x == m (or m^-1)
+}\if{html}{\out{</div>}}
 }
 \description{
 Compute symmetric square roots of positive definite matrices

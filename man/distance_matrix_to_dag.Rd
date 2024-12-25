@@ -7,12 +7,13 @@
 distance_matrix_to_dag(d, k = 4)
 }
 \arguments{
-\item{d}{A distance matrix, or of class "dist"new_}
+\item{d}{A distance matrix, or of class "dist"}
 
 \item{k}{The number of parents for each node}
 }
 \value{
-A directed acyclic graph from the igraph package
+\if{html}{\out{<div class="sourceCode">}}\preformatted{A directed acyclic graph from the igraph package
+}\if{html}{\out{</div>}}
 }
 \description{
 Convert a distance matrix to a directed acyclic graph

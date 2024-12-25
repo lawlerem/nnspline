@@ -12,8 +12,9 @@ get_pairs(dag, x_parents)
 \item{x_parents}{A list of sets of parent nodes}
 }
 \value{
-A data.frame giving the list of every node
-that appear in the same parent list or are parent/children.
+\if{html}{\out{<div class="sourceCode">}}\preformatted{A data.frame giving the list of every node that appears in the same
+parent list or are parent/children.
+}\if{html}{\out{</div>}}
 }
 \description{
 Find each pair of nodes whose correlation needs to be computed.

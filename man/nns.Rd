@@ -7,16 +7,19 @@
 nns(x, spline, index = FALSE)
 }
 \arguments{
-\item{x}{The input values. If x is a vector it is treated as a column vector.
-The dimensions of x should be equal to c(DIM, ncol(spline$x)).
-If ncol(spline$x) == 1, then the dimensions can drop the last dimension and be just DIM.}
+\item{x}{The input values. If x is a vector it is treated as a column vector. The
+dimensions of x should be equal to c(DIM, ncol(spline$x)). If
+ncol(spline$x) == 1, then the dimensions can drop the last dimension and
+be just DIM.}
 
 \item{spline}{The spline}
 
 \item{index}{Logical. If TRUE, returns the index instead of the value.}
 }
 \value{
-The value(s) of the spline at x, or its indices if index is TRUE. the dimension of the return is equal to DIM.
+\if{html}{\out{<div class="sourceCode">}}\preformatted{The value(s) of the spline at x, or its indices if index is TRUE. 
+The dimension of the return is equal to DIM.
+}\if{html}{\out{</div>}}
 }
 \description{
 Evaluate a nnspline

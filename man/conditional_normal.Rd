@@ -17,14 +17,16 @@ conditional_normal(
 
 \item{joint_mean}{An n x k mean matrix. Columns index independent replicates.}
 
-\item{joint_covariance}{An n x n covariance matrix. Can be a sparse matrix.}
+\item{joint_covariance}{An n x n covariance matrix.}
 
 \item{predicted}{Indices declaring which of the n elements should be predicted.}
 
 \item{predictors}{Indices declaring which of the n elements should be conditioned on.}
 }
 \value{
-A list with the conditional mean of variance of x[predicted, ] given x[predictors, ]
+\if{html}{\out{<div class="sourceCode">}}\preformatted{A list with the conditional mean of variance of 
+x\[predicted, \] given x\[predictors, \]
+}\if{html}{\out{</div>}}
 }
 \description{
 Conditional mean and variance from joint Gaussian variables

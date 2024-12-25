@@ -14,8 +14,9 @@ dspline(x, spline, log = TRUE)
 \item{log}{If TRUE, returns the log-likelihood.}
 }
 \value{
-The log-likelihood of the spline evaluated at x. If x is a simref
+\if{html}{\out{<div class="sourceCode">}}\preformatted{The log-likelihood of the spline evaluated at x. If x is a simref
 object, then the values of x will be replaced with simulated values.
+}\if{html}{\out{</div>}}
 }
 \description{
 Evaluate the log-likelihood of a spline

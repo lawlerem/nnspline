@@ -27,7 +27,9 @@ nnodes(
 \item{n_parents}{If create_graph is TRUE, the number of parents for each node.}
 }
 \value{
-A list giving the nodes, an LT matrix for computing mahalanobis distance, the objective function trajectory, and possibly the node graph.
+\if{html}{\out{<div class="sourceCode">}}\preformatted{A list giving the nodes, an LT matrix for computing mahalanobis distance,
+the objective function trajectory, and possibly the node graph.
+}\if{html}{\out{</div>}}
 }
 \description{
 Find a good set of nodes to cover a dataset
