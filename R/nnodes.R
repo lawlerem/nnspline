@@ -98,7 +98,6 @@ nnodes<- function(
         if( "Replace" %in% operation ) {
             new_nodes<- nodes |>
                 replace(
-                    nodes,
                     data,
                     dlist
                 )
