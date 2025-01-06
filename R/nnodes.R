@@ -156,7 +156,7 @@ symsqrt<- function(
         m,
         invert = TRUE
     ) {
-    eig<- m |> eigen(m)
+    eig<- m |> eigen()
     eig$values<- eig$values^(0.5 * ifelse(invert, -1, 1))
     ans<- eig$vectors %*% diag(eig$values) %*% t(eig$vector)
     return(ans)
