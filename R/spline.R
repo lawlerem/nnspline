@@ -9,6 +9,8 @@
 #'     The number of parents each node should have.
 #' @param parameters 
 #'     The parameters used in the covariance function.
+#' @param noise
+#'     A non-negative variance parameter used to model uncorrelated noise.
 #' @param covariance_function 
 #'     A function used to compute covariances between spline inputs. 
 #'     Should have the arguments x1 and x2, vectors giving the spline inputs, 
@@ -16,12 +18,6 @@
 #' @param node_graph 
 #'     An optional argument. If supplied, it needs to be an igraph object 
 #'     representing a directed acyclic graph.
-#' @param LT 
-#'     A Linear Transformation matrix to use when finding nearest neighbours 
-#'     (but not the covariance function). Input values will be transformed with 
-#'     x %*% LT. For Euclidean distance LT should be the identity matrix, for 
-#'     mahalanobis distance for a dataset D, LT should be equal to 
-#'     symqrt(cov(D), invert = TRUE).
 #'
 #' @return 
 #'     A multispline object as a list with the following elements:
@@ -29,8 +25,6 @@
 #'       The output values of the spline at x.
 #'   * x 
 #'       The locations at which the spline is evaluated.
-#'   * x_LT 
-#'       The linearly transformed x location, x %*% LT
 #'   * x_parents 
 #'       The nodes which are parents of each x. If a parent is a negative value
 #'       then the node value of that parent is taken to be the corresponding
@@ -41,18 +35,16 @@
 #'       Mapping indices for the node values. See ?TMB::MakeADFun.
 #'   * nodes 
 #'       The locations of the spline nodes.
-#'   * nodes_LT 
-#'       The linearly transformed node locations nodes %*% LT.
 #'   * node_graph 
 #'       An igraph directed acyclic graph represnting the node parent structure.
-#'   * LT 
-#'       A linear transformation matrix
 #'   * n_parents 
 #'       The number of parents for each location
 #'   * parameters 
 #'       The parameters for the covariance function.
 #'   * parameter_map 
 #'       Mapping indices for the parameters. See ?TMB::MakeADFun.
+#'   * noise
+#'       A non-negative variance parameter used to model uncorrelated noise.
 #'   * covariance_function 
 #'       The function used to compute covariances between input points.
 #'       It should take argument d1 and d2, each of which represents a row
@@ -76,6 +68,7 @@ create_nnspline<- function(
 		nodes = x,
 		n_parents = 4,
 		parameters = c(1, 1),
+		noise = 0,
 		covariance_function = function(x1, x2, p) {
 			d<- sqrt(sum((x1 - x2)^2))
 			variance<- p[[1]]
@@ -83,17 +76,14 @@ create_nnspline<- function(
 			cov<- variance * (1 + d / range) * exp( -d / range )
 			return(cov)
 		},
-		node_graph,
-		LT = diag(ncol(x))
+		node_graph
 	) {
 	if( !("matrix" %in% class(x)) ) x<- x |> matrix(ncol = 1)
 	if( !("matrix" %in% class(nodes)) ) nodes<- nodes |> matrix(ncol = 1)
 	n_parents<- min(n_parents, nrow(nodes))
 
-	x_LT<- x %*% LT
-	nodes_LT<- nodes %*% LT
-	t_nodes<- nodes_LT |> t()
-	x_parents<- x_LT |> 
+	t_nodes<- nodes |> t()
+	x_parents<- x |> 
         apply(
 	    	MARGIN = 1,
 	    	function(row) {
@@ -118,7 +108,7 @@ create_nnspline<- function(
 	    )
 
 	if( missing(node_graph) ) {
-		node_graph<- nodes_LT |> 
+		node_graph<- nodes |> 
             dist() |> 
             distance_matrix_to_dag(k = n_parents)
 	}
@@ -128,17 +118,15 @@ create_nnspline<- function(
 	spline<- list(
 		values = numeric(nrow(x)),
 		x = x,
-		x_LT = x_LT,
 		x_parents = x_parents,
 		node_values = numeric(nrow(nodes)),
 		node_values_map = seq(nrow(nodes)),
 		nodes = nodes,
-		nodes_LT = nodes_LT,
 		node_graph = node_graph,
-		LT = LT,
 		n_parents = n_parents,
 		parameters = parameters,
 		parameter_map = seq_along(parameters),
+		noise = noise,
 		covariance_function = covariance_function,
 		x_covariance = x_covariance,
 		node_covariance = node_covariance,
@@ -177,6 +165,9 @@ update_spline<- function(
 #' @param parameters 
 #'     The new parameters for the spline. If missing, will use the pre-existing
 #'     parameters stored in the spline.
+#' @param noise
+#'     The new variance parameter for uncorrelated noise. If missing, will use
+#'     the pre-existing noise parameter stored in the spline.
 #' @param only_node_covariance 
 #'     Logical. If TRUE, the cross-covariance matrix between x and nodes will 
 #'     not be updated.
@@ -185,10 +176,12 @@ update_spline<- function(
 update_spline_covariance<- function(
 		spline,
 		parameters,
+		noise,
 		only_node_covariance = FALSE,
 		...
 	) {
 	if( !missing(parameters) ) spline$parameters<- parameters
+	if( !missing(noise) ) spline$noise<- noise
 	mode<- "numeric"
 	if( "advector" %in% class(spline$parameters) && requireNamespace("RTMB") ) {
 		mode<- "advector"
@@ -214,6 +207,7 @@ update_spline_covariance<- function(
 	covs<- c |> do.call(covs)
 	spline$node_covariance[spline$node_pairs]<- covs
 	spline$node_covariance[spline$node_pairs[, c(2, 1)]]<- covs
+	diag(spline$node_covariance)<- diag(spline$node_covariance) + spline$noise
 	if( only_node_covariance ) return(spline)
 
 
@@ -226,7 +220,7 @@ update_spline_covariance<- function(
 	    			spline$x[xi, ],
 	    			spline$x[xi, ],
 	    			spline$parameters
-	    		)
+	    		) + spline$noise
 	    		parent_cov<- p |> 
                     sapply(
 	    		    	function(nodei) spline$covariance_function(
@@ -424,8 +418,8 @@ nns<- function(
 			stop("The last dimension of x must be equal to the number of columns of spline$x.")
 		}
 	}
-	spline_x<- spline$x_LT |> t()
-	idx<- (x %*% spline$LT) |>
+	spline_x<- spline$x |> t()
+	idx<- x |>
         apply(
 	    	MARGIN = seq(length(dim(x)) - 1),
 	    	function(row) {
