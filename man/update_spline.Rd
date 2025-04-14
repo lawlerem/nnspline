@@ -8,7 +8,13 @@
 \usage{
 update_spline(spline, ...)
 
-update_spline_covariance(spline, parameters, only_node_covariance = FALSE, ...)
+update_spline_covariance(
+  spline,
+  parameters,
+  noise,
+  only_node_covariance = FALSE,
+  ...
+)
 
 update_spline_values(spline, node_values, ...)
 }
@@ -20,6 +26,9 @@ update_spline_values.}
 
 \item{parameters}{The new parameters for the spline. If missing, will use the pre-existing
 parameters stored in the spline.}
+
+\item{noise}{The new variance parameter for uncorrelated noise. If missing, will use
+the pre-existing noise parameter stored in the spline.}
 
 \item{only_node_covariance}{Logical. If TRUE, the cross-covariance matrix between x and nodes will
 not be updated.}

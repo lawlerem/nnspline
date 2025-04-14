@@ -9,6 +9,7 @@ create_nnspline(
   nodes = x,
   n_parents = 4,
   parameters = c(1, 1),
+  noise = 0,
   covariance_function = function(x1, x2, p) {
      d <- sqrt(sum((x1 - x2)^2))
     
@@ -18,8 +19,7 @@ create_nnspline(
     exp(-d/range)
      return(cov)
  },
-  node_graph,
-  LT = diag(ncol(x))
+  node_graph
 )
 }
 \arguments{
@@ -32,18 +32,14 @@ values are desired}
 
 \item{parameters}{The parameters used in the covariance function.}
 
+\item{noise}{A non-negative variance parameter used to model uncorrelated noise.}
+
 \item{covariance_function}{A function used to compute covariances between spline inputs.
 Should have the arguments x1 and x2, vectors giving the spline inputs,
 and p, a vector of parameters.}
 
 \item{node_graph}{An optional argument. If supplied, it needs to be an igraph object
 representing a directed acyclic graph.}
-
-\item{LT}{A Linear Transformation matrix to use when finding nearest neighbours
-(but not the covariance function). Input values will be transformed with
-x \%*\% LT. For Euclidean distance LT should be the identity matrix, for
-mahalanobis distance for a dataset D, LT should be equal to
-symqrt(cov(D), invert = TRUE).}
 }
 \value{
 \if{html}{\out{<div class="sourceCode">}}\preformatted{A multispline object as a list with the following elements:
@@ -53,8 +49,6 @@ symqrt(cov(D), invert = TRUE).}
 The output values of the spline at x.
 \item x
 The locations at which the spline is evaluated.
-\item x_LT
-The linearly transformed x location, x \%*\% LT
 \item x_parents
 The nodes which are parents of each x. If a parent is a negative value
 then the node value of that parent is taken to be the corresponding
@@ -65,18 +59,16 @@ The output values of the spline at the nodes.
 Mapping indices for the node values. See ?TMB::MakeADFun.
 \item nodes
 The locations of the spline nodes.
-\item nodes_LT
-The linearly transformed node locations nodes \%*\% LT.
 \item node_graph
 An igraph directed acyclic graph represnting the node parent structure.
-\item LT
-A linear transformation matrix
 \item n_parents
 The number of parents for each location
 \item parameters
 The parameters for the covariance function.
 \item parameter_map
 Mapping indices for the parameters. See ?TMB::MakeADFun.
+\item noise
+A non-negative variance parameter used to model uncorrelated noise.
 \item covariance_function
 The function used to compute covariances between input points.
 It should take argument d1 and d2, each of which represents a row

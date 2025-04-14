@@ -314,8 +314,14 @@ dspline<- function(
 	for( i in node_order ) {
 		p<- spline$node_graph |> igraph::neighbors(i, "in") |> as.numeric()
 		Sigma<- spline$node_covariance[c(i, p), c(i, p), drop = FALSE]
+		if( "simref" %in% (x |> class()) ) {
+			the_x<- x[c(i, p)]
+			dim(the_x)<- c(length(p) + 1, 1)
+		} else {
+			the_x<- x[c(i, p)] |> cbind()
+		}
 		cmvn<- conditional_normal(
-			x[c(i, p)] |> cbind(),
+			the_x,
 			(0 * spline$node_values[c(i, p)]) |> cbind(),
 			Sigma
 		)
