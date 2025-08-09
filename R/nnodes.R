@@ -153,13 +153,16 @@ nnodes<- function(
 #' @export
 symsqrt<- function(
         m,
-        invert = TRUE
+        invert = FALSE
     ) {
     eig<- m |> eigen()
     eig$values<- eig$values^(0.5 * ifelse(invert, -1, 1))
-    ans<- eig$vectors %*% 
-        diag(eig$values, nrow = length(eig$values)) %*% 
-        t(eig$vector)
+    val_vecinv<- solve(
+            a = eig$vector |> t(),
+            b = diag(eig$values, nrow = nrow(m)) |> t()
+        ) |>
+        t()
+    ans<- eig$vectors %*% val_vecinv
     return(ans)
 }
 
