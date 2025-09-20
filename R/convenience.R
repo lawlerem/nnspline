@@ -58,10 +58,9 @@ distance_matrix_to_dag<- function(
 #'     A data.frame giving the list of every node that appears in the same
 #'     parent list or are parent/children.
 get_pairs<- function(
-        dag, 
-        x_parents
+        dag
     ) {
-    dag_pairs<- seq_along(igraph::V(dag)) |>
+    pairs<- seq_along(igraph::V(dag)) |>
         lapply(
             function(v) {
                 parents<- dag |> igraph::neighbors(v, "in")
@@ -75,31 +74,10 @@ get_pairs<- function(
                 colnames(pairs)<- c("i", "j")
                 return(pairs)
             }
-        )
-    x_pairs<- x_parents |>
-        lapply(
-            function(p) {
-                if( (length(p) == 1) && (p < 0) ) {
-                    return(
-                        data.frame(
-                            i = integer(0),
-                            j = integer(0)
-                        )
-                    )
-                }
-                pairs<- p |> combn(2) |> t()
-                colnames(pairs)<- c("i", "j")
-                return(pairs)
-            }
-        )
-    pairs<- rbind |>
-        do.call(
-            c(
-                dag_pairs,
-                x_pairs
-            )
-        )
-    pairs<- pairs |> unique() |> as.matrix()
+        ) |>
+        do.call(rbind, args = _) |>
+        unique() |>
+        as.matrix()
     return(pairs)
 }
 
