@@ -51,46 +51,50 @@
 #' 
 #' @export
 create_nnspline<- function(
-		x,
-		n_parents = 4,
-		parameters = c(1, 1),
-		noise = 0,
-		covariance_function = function(x1, x2, p) {
-			d<- sqrt(sum((x1 - x2)^2))
-			variance<- p[[1]] * p[[2]]^(-3)
-			range<- p[[2]]
-			cov<- variance * (1 + d / range) * exp( -d / range )
-			return(cov)
-		},
-		graph
-	) {
-	if( !("matrix" %in% class(x)) ) x<- x |> matrix(ncol = 1)
-	n_parents<- min(n_parents, nrow(x))
+        x,
+        n_parents = 4,
+        parameters = c(1, 1),
+        noise = 0,
+        covariance_function = function(x1, x2, p) {
+            d<- sqrt(sum((x1 - x2)^2))
+            variance<- p[[1]] * p[[2]]^(-3)
+            range<- p[[2]]
+            cov<- variance * (1 + d / range) * exp( -d / range )
+            return(cov)
+        },
+        graph
+    ) {
+    if( !("matrix" %in% class(x)) ) x<- x |> matrix(ncol = 1)
+    n_parents<- min(n_parents, nrow(x))
 
-	t_x<- x |> t()
-	if( missing(graph) ) {
-		graph<- x |> 
+    t_x<- x |> t()
+    if( missing(graph) ) {
+        graph<- x |> 
             dist() |> 
             distance_matrix_to_dag(k = n_parents)
-	}
-	pairs<- get_pairs(graph)
-	covariance_matrix<- matrix(-Inf, nrow = nrow(x), ncol = nrow(x))
+    }
+    pairs<- get_pairs(graph)
+    covariance_matrix<- Matrix::sparseMatrix(
+            i = pairs[, 1], 
+            j = pairs[, 2],
+            symmetric = TRUE
+        )
 
-	spline<- list(
-		values = numeric(nrow(x)),
-		x = x,
-		map = seq(nrow(x)),
-		graph = graph,
-		n_parents = n_parents,
-		parameters = parameters,
-		parameter_map = seq_along(parameters),
-		noise = noise,
-		covariance_function = covariance_function,
-		covariance_matrix = covariance_matrix,
-		pairs = pairs
-	)
-	spline<- spline |> update_spline()
-	return(spline)
+    spline<- list(
+        values = numeric(nrow(x)),
+        x = x,
+        map = seq(nrow(x)),
+        graph = graph,
+        n_parents = n_parents,
+        parameters = parameters,
+        parameter_map = seq_along(parameters),
+        noise = noise,
+        covariance_function = covariance_function,
+        covariance_matrix = covariance_matrix,
+        pairs = pairs
+    )
+    spline<- spline |> update_spline()
+    return(spline)
 }
 
 #' Update a spline based on node values and parameters values
@@ -106,16 +110,16 @@ create_nnspline<- function(
 #'
 #' @export
 update_spline<- function(
-		spline,
-		parameters,
-		values,
-		...
-	) {
-	spline<- spline |> 
+        spline,
+        parameters,
+        values,
+        ...
+    ) {
+    spline<- spline |> 
         update_parameters(...) |>
         update_values(...)
 
-	return(spline)
+    return(spline)
 }
 
 #' @describeIn update_spline 
@@ -130,36 +134,41 @@ update_spline<- function(
 #' 
 #' @export
 update_parameters<- function(
-		spline,
-		parameters,
-		noise,
-		...
-	) {
-	if( !missing(parameters) ) spline$parameters<- parameters
-	if( !missing(noise) ) spline$noise<- noise
-	mode<- "numeric"
-	if( "advector" %in% class(spline$parameters) && requireNamespace("RTMB") ) {
-		mode<- "advector"
-		spline$covariance_matrix<- spline$covariance_matrix |> 
+        spline,
+        parameters,
+        noise,
+        ...
+    ) {
+    if( !missing(parameters) ) spline$parameters<- parameters
+    if( !missing(noise) ) spline$noise<- noise
+    mode<- "numeric"
+    if( "advector" %in% class(spline$parameters) && requireNamespace("RTMB") ) {
+        mode<- "advector"
+        spline$covariance_matrix<- spline$covariance_matrix |> 
             RTMB::AD(force = TRUE)
-	}
+    }
 
-	covs<- spline$pairs |> 
+    covs<- spline$pairs |> 
         apply(
-	    	MARGIN = 1,
-	    	function(pair) spline$covariance_function(
-	    		spline$x[pair[[1]], ],
-	    		spline$x[pair[[2]], ],
-	    		spline$parameters
-	    	),
-	    	simplify = FALSE
-	    )
-	covs<- c |> do.call(covs)
-	spline$covariance_matrix[spline$pairs]<- covs
-	spline$covariance_matrix[spline$pairs[, c(2, 1)]]<- covs
-	diag(spline$covariance_matrix)<- diag(spline$covariance_matrix) + spline$noise
-
-	return(spline)
+            MARGIN = 1,
+            function(pair)
+                (pair[[1]] == pair[[2]]) * spline$noise + 
+                spline$covariance_function(
+                    spline$x[pair[[1]], ],
+                    spline$x[pair[[2]], ],
+                    spline$parameters
+                ),
+            simplify = FALSE
+        )
+    covs<- c |> do.call(covs)
+    spline$covariance_matrix<- Matrix::sparseMatrix(
+            x = covs,
+			i = spline$pairs[, 1], 
+			j = spline$pairs[, 2],
+			symmetric = TRUE
+		)
+    
+    return(spline)
 }
 
 #' @describeIn update_spline 
@@ -171,18 +180,18 @@ update_parameters<- function(
 #' 
 #' @export
 update_values<- function(
-		spline,
-		values,
-		...
-	) {
-	if( !missing(values) ) spline$values<- values
-	mode<- "numeric"
-	if( "advector" %in% class(spline$values) && requireNamespace("RTMB") ) {
-		mode<- "advector"
-		spline$values<- spline$values |> RTMB::AD(force = TRUE)
-	}
+        spline,
+        values,
+        ...
+    ) {
+    if( !missing(values) ) spline$values<- values
+    mode<- "numeric"
+    if( "advector" %in% class(spline$values) && requireNamespace("RTMB") ) {
+        mode<- "advector"
+        spline$values<- spline$values |> RTMB::AD(force = TRUE)
+    }
 
-	return( spline )
+    return( spline )
 }
 
 #' Evaluate the log-likelihood of a spline
@@ -204,43 +213,43 @@ dspline<- function(
         spline,
         log = TRUE
     ) {
-	mode<- "numeric"
-	if( "advector" %in% c(class(x), class(spline$covariance_matrix)) && 
+    mode<- "numeric"
+    if( "advector" %in% c(class(x), class(spline$covariance_matrix)) && 
             requireNamespace("RTMB") ) mode<- "advector"
-	order<- spline$graph |> igraph::topo_sort() |> as.numeric()
-	ll<- 0
-	for( i in order ) {
-		p<- spline$graph |> igraph::neighbors(i, "in") |> as.numeric()
-		Sigma<- spline$covariance_matrix[c(i, p), c(i, p), drop = FALSE]
-		if( "simref" %in% (x |> class()) ) {
-			the_x<- x[c(i, p)]
-			dim(the_x)<- c(length(p) + 1, 1)
-		} else {
-			the_x<- x[c(i, p)] |> cbind()
-		}
-		cmvn<- conditional_normal(
-			the_x,
-			(0 * spline$values[c(i, p)]) |> cbind(),
-			Sigma
-		)
-		if( (mode == "advector") | ("simref" %in% (x |> class())) ) {
-			ll<- ll + RTMB::dmvnorm(
-				x[i],
-				cmvn$mean,
-				cmvn$covariance,
-				log = TRUE
-			)
-		} else {
-			ll<- ll + mvtnorm::dmvnorm(
-				x[i],
-				cmvn$mean,
-				cmvn$covariance,
-				log = TRUE
-			)
-		}
-	}
-	if( !log ) ll<- ll |> exp()
-	return(ll)
+    order<- spline$graph |> igraph::topo_sort() |> as.numeric()
+    ll<- 0
+    for( i in order ) {
+        p<- spline$graph |> igraph::neighbors(i, "in") |> as.numeric()
+        Sigma<- spline$covariance_matrix[c(i, p), c(i, p), drop = FALSE]
+        if( "simref" %in% (x |> class()) ) {
+            the_x<- x[c(i, p)]
+            dim(the_x)<- c(length(p) + 1, 1)
+        } else {
+            the_x<- x[c(i, p)] |> cbind()
+        }
+        cmvn<- conditional_normal(
+            the_x,
+            (0 * spline$values[c(i, p)]) |> cbind(),
+            Sigma
+        )
+        if( (mode == "advector") | ("simref" %in% (x |> class())) ) {
+            ll<- ll + RTMB::dmvnorm(
+                x[i],
+                cmvn$mean,
+                cmvn$covariance,
+                log = TRUE
+            )
+        } else {
+            ll<- ll + mvtnorm::dmvnorm(
+                x[i],
+                cmvn$mean,
+                cmvn$covariance,
+                log = TRUE
+            )
+        }
+    }
+    if( !log ) ll<- ll |> exp()
+    return(ll)
 }
 
 #' Simulate a spline
@@ -256,36 +265,36 @@ dspline<- function(
 #' 
 #' @export
 rspline<- function(
-		spline,
-		n = 1
-	) {
-	spline<- spline |> update_parameters()
-	values<- matrix(
-		0,
-		nrow = spline$values |> length(),
-		ncol = n
-	)
-	order<- spline$graph |> igraph::topo_sort() |> as.numeric()
-	for( i in order ) {
-		p<- spline$graph |> igraph::neighbors(i, "in") |> as.numeric()
-		Sigma<- spline$covariance_matrix[c(i, p), c(i, p), drop = FALSE]
-		cmvn<- conditional_normal(
-			values[c(i, p), , drop = FALSE],
-			0 * values[c(i, p), , drop = FALSE],
-			Sigma
-		)
-		values[i, ]<- MASS::mvrnorm(
-			n = values |> ncol(),
-			mu = 0 * cmvn$mean[, 1],
-			Sigma = cmvn$covariance
-		)
-		values[i, ]<- values[i, ] + cmvn$mean
-	}
-	sims<- seq(n) |> 
+        spline,
+        n = 1
+    ) {
+    spline<- spline |> update_parameters()
+    values<- matrix(
+        0,
+        nrow = spline$values |> length(),
+        ncol = n
+    )
+    order<- spline$graph |> igraph::topo_sort() |> as.numeric()
+    for( i in order ) {
+        p<- spline$graph |> igraph::neighbors(i, "in") |> as.numeric()
+        Sigma<- spline$covariance_matrix[c(i, p), c(i, p), drop = FALSE]
+        cmvn<- conditional_normal(
+            values[c(i, p), , drop = FALSE],
+            0 * values[c(i, p), , drop = FALSE],
+            Sigma
+        )
+        values[i, ]<- MASS::mvrnorm(
+            n = values |> ncol(),
+            mu = 0 * cmvn$mean[, 1],
+            Sigma = cmvn$covariance
+        )
+        values[i, ]<- values[i, ] + cmvn$mean
+    }
+    sims<- seq(n) |> 
         lapply(
-	    	function(i) spline |> update_values(values[, i])
-	    )
+            function(i) spline |> update_values(values[, i])
+        )
 
-	if( length(sims) == 1 ) sims<- sims[[1]]
-	return(sims)
+    if( length(sims) == 1 ) sims<- sims[[1]]
+    return(sims)
 }
