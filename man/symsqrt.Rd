@@ -4,7 +4,7 @@
 \alias{symsqrt}
 \title{Compute symmetric square roots of positive definite matrices}
 \usage{
-symsqrt(m, invert = TRUE)
+symsqrt(m, invert = FALSE)
 }
 \arguments{
 \item{m}{A positive definite matrix}

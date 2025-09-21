@@ -67,18 +67,13 @@ create_nnspline<- function(
     if( !("matrix" %in% class(x)) ) x<- x |> matrix(ncol = 1)
     n_parents<- min(n_parents, nrow(x))
 
-    t_x<- x |> t()
     if( missing(graph) ) {
         graph<- x |> 
             dist() |> 
             distance_matrix_to_dag(k = n_parents)
     }
     pairs<- get_pairs(graph)
-    covariance_matrix<- Matrix::sparseMatrix(
-            i = pairs[, 1], 
-            j = pairs[, 2],
-            symmetric = TRUE
-        )
+    covariance_matrix<- matrix(-Inf, nrow = nrow(x), ncol = nrow(x))
 
     spline<- list(
         values = numeric(nrow(x)),
@@ -134,41 +129,36 @@ update_spline<- function(
 #' 
 #' @export
 update_parameters<- function(
-        spline,
-        parameters,
-        noise,
-        ...
-    ) {
-    if( !missing(parameters) ) spline$parameters<- parameters
-    if( !missing(noise) ) spline$noise<- noise
-    mode<- "numeric"
-    if( "advector" %in% class(spline$parameters) && requireNamespace("RTMB") ) {
-        mode<- "advector"
-        spline$covariance_matrix<- spline$covariance_matrix |> 
+		spline,
+		parameters,
+		noise,
+		...
+	) {
+	if( !missing(parameters) ) spline$parameters<- parameters
+	if( !missing(noise) ) spline$noise<- noise
+	mode<- "numeric"
+	if( "advector" %in% class(spline$parameters) && requireNamespace("RTMB") ) {
+		mode<- "advector"
+		spline$covariance_matrix<- spline$covariance_matrix |> 
             RTMB::AD(force = TRUE)
-    }
+	}
 
-    covs<- spline$pairs |> 
+	covs<- spline$pairs |> 
         apply(
-            MARGIN = 1,
-            function(pair)
-                (pair[[1]] == pair[[2]]) * spline$noise + 
-                spline$covariance_function(
-                    spline$x[pair[[1]], ],
-                    spline$x[pair[[2]], ],
-                    spline$parameters
-                ),
-            simplify = FALSE
-        )
-    covs<- c |> do.call(covs)
-    spline$covariance_matrix<- Matrix::sparseMatrix(
-            x = covs,
-			i = spline$pairs[, 1], 
-			j = spline$pairs[, 2],
-			symmetric = TRUE
-		)
-    
-    return(spline)
+	    	MARGIN = 1,
+	    	function(pair) spline$covariance_function(
+	    		spline$x[pair[[1]], ],
+	    		spline$x[pair[[2]], ],
+	    		spline$parameters
+	    	),
+	    	simplify = FALSE
+	    )
+	covs<- c |> do.call(covs)
+	spline$covariance_matrix[spline$pairs]<- covs
+	spline$covariance_matrix[spline$pairs[, c(2, 1)]]<- covs
+	diag(spline$covariance_matrix)<- diag(spline$covariance_matrix) + spline$noise
+
+	return(spline)
 }
 
 #' @describeIn update_spline 

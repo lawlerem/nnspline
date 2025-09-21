@@ -4,7 +4,7 @@
 \alias{get_pairs}
 \title{Find each pair of nodes whose correlation needs to be computed.}
 \usage{
-get_pairs(dag, x_parents)
+get_pairs(dag)
 }
 \arguments{
 \item{dag}{An directed acyclic graph as an igraph object}
