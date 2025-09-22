@@ -199,7 +199,10 @@ dlcspline<- function(x, spline, smoothness, height, log = TRUE) {
     ll<- ll + dnorm(qlogis(smoothness), 0, 1.5, TRUE)
     mix<- spline$mixtape(smoothness)
     for( i in spline |> _$graph |> igraph::topo_sort() |> as.numeric() ) {
-        parents<- spline |> _$graph |> neighbors(i, "in") |> as.numeric()
+        parents<- spline |> 
+            _$graph |> 
+            igraph::neighbors(i, "in") |> 
+            as.numeric()
         # plc = AB %*% BB^(-1) %*% x[p] isn't affected by scale since sd^2
         #     appears once in AB and sd^(-2) appears once in BB^(-1)
         if( length(parents) == 0 ) {
@@ -245,7 +248,10 @@ dlcspline<- function(x, spline, smoothness, height, log = TRUE) {
 rlcspline<- function(spline, smoothness, height) {
     mix<- spline$mixtape(smoothness)
     for( i in spline |> _$graph |> igraph::topo_sort() |> as.numeric() ) {
-        parents<- spline |> _$graph |> neighbors(i, "in") |> as.numeric()
+        parents<- spline |> 
+            _$graph |> 
+            igraph::neighbors(i, "in") |> 
+            as.numeric()
         # plc = AB %*% BB^(-1) %*% x[p] isn't affected by scale since sd^2
         #     appears once in AB and sd^(-2) appears once in BB^(-1)
         plc<- spline |>
