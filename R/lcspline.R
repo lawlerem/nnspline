@@ -167,12 +167,34 @@ compute_single_lc<- function(lc, corfun, graph, x) {
                 } else {
                     AB_BBinv<- solve(BB, BA) |> t()
                 }
-                plc<- AB_BBinv |> as.numeric()
-                elc<- (AA - AB_BBinv %*% BA) |> as.numeric() |> sqrt()
-                list(plc = plc, elc = elc)
+                plc<- AB_BBinv |> 
+                    as.numeric() |>
+                    data.frame(
+                        i = idx |> rep(length(p[[idx]])),
+                        j = p[[idx]],
+                        x = _
+                    )
+                var<- (AA - AB_BBinv %*% BA) |> as.numeric() |> sqrt()
+                list(
+                    plc = plc, 
+                    var = var
+                )
             }
         )
-    LC
+    plc<- LC |>
+        lapply(`[[`, "plc") |>
+        do.call(rbind, args = _) |>
+        subset(x != 0) |>
+        (\(x) Matrix::sparseMatrix(
+            i = x$i,
+            j = x$j,
+            x = x$x,
+            dims = graph |> igraph::V() |> length() |> rep(2)
+        ))()
+    var<- LC |>
+        lapply(`[[`, "var") |>
+        do.call(c, args = _)
+    return(list(plc = plc, var = var))
 }
 
 #' Evaluate the log-likelihood of a lcspline
@@ -193,41 +215,38 @@ compute_single_lc<- function(lc, corfun, graph, x) {
 #'     then additionally the values of x will replaced with simulated values.
 #' 
 #' @export
-dlcspline<- function(x, spline, smoothness, height, log = TRUE) {
+dlcspline<- function(
+        x, 
+        spline, 
+        smoothness, 
+        height, 
+        log = TRUE,
+        constrain_smoothness = TRUE
+    ) {
     ll<- 0
     # Very weak prior to smoothness away from the edges
-    ll<- ll + dnorm(qlogis(smoothness), 0, 1.5, TRUE)
-    mix<- spline$mixtape(smoothness)
-    for( i in spline |> _$graph |> igraph::topo_sort() |> as.numeric() ) {
-        parents<- spline |> 
-            _$graph |> 
-            igraph::neighbors(i, "in") |> 
-            as.numeric()
-        # plc = AB %*% BB^(-1) %*% x[p] isn't affected by scale since sd^2
-        #     appears once in AB and sd^(-2) appears once in BB^(-1)
-        if( length(parents) == 0 ) {
-            pmean<- 0
-        } else {
-            plc<- spline |>
-                _$LC |>
-                lapply(`[[`, i) |>
-                lapply(`[[`, "plc") |>
-                do.call(rbind, args = _) |>
-                (\(x) x * mix)() |>
-                RTMB::colSums()
-            pmean<- sum(plc * x[parents])
+    if( x |> inherits("simref") ) {
+        simx<- matrix(0, nrow = nrow(x), ncol = ncol(x))
+        for( j in simx |> ncol() |> seq() ) {
+            simx[, j]<- spline |> rlcspline(smoothness, height) |> _$values
         }
-        # elc = AA - AB %*% BB^(-1) %*% BA *is* affect by scale since sd^2
-        #     appears once in AA, once in BA, and 0 times in AB %*% BB^(-1).
-        elc<- spline |>
-            _$LC |>
-            lapply(`[[`, i) |>
-            lapply(`[[`, "elc") |>
-            do.call(c, args = _) |>
-            (\(x) x * mix)() |>
-            sum()
-        ll<- ll + dnorm(x[i], pmean, height * elc, log = TRUE)
+        x[]<- simx
+        return(x)
     }
+    ll<- ll + constrain_smoothness * dnorm(qlogis(smoothness), 0, 1.5, TRUE)
+    mix<- spline$mixtape(smoothness)
+    plc<- spline |>
+        _$LC |>
+        lapply(`[[`, "plc") |>
+        (\(x) Map(`*`, x, as.list(mix)))() |>
+        Reduce(`+`, x = _)
+    mean<- (plc %*% x) |> as.matrix()
+    var<- spline |>
+        _$LC |>
+        lapply(`[[`, "var") |>
+        (\(x) Map(`*`, x, as.list(mix)))() |>
+        Reduce(`+`, x = _)
+    ll<- ll + sum(dnorm(x, mean, height * sqrt(var), log = TRUE))
     if( !log ) ll<- exp(ll)
     return( ll )
 }
@@ -247,31 +266,23 @@ dlcspline<- function(x, spline, smoothness, height, log = TRUE) {
 #' @export
 rlcspline<- function(spline, smoothness, height) {
     mix<- spline$mixtape(smoothness)
+    plc<- spline |>
+        _$LC |>
+        lapply(`[[`, "plc") |>
+        (\(x) Map(`*`, x, as.list(mix)))() |>
+        Reduce(`+`, x = _)
+    var<- spline |>
+        _$LC |>
+        lapply(`[[`, "var") |>
+        (\(x) Map(`*`, x, as.list(mix)))() |>
+        Reduce(`+`, x = _)
     for( i in spline |> _$graph |> igraph::topo_sort() |> as.numeric() ) {
         parents<- spline |> 
             _$graph |> 
             igraph::neighbors(i, "in") |> 
             as.numeric()
-        # plc = AB %*% BB^(-1) %*% x[p] isn't affected by scale since sd^2
-        #     appears once in AB and sd^(-2) appears once in BB^(-1)
-        plc<- spline |>
-            _$LC |>
-            lapply(`[[`, i) |>
-            lapply(`[[`, "plc") |>
-            do.call(rbind, args = _) |>
-            (\(x) mix * x)() |>
-            colSums()
-        pmean<- sum(plc * spline$values[parents])
-        # elc = AA - AB %*% BB^(-1) %*% BA *is* affect by scale since sd^2
-        #     appears once in AA, once in BA, and 0 times in AB %*% BB^(-1).
-        elc<- spline |>
-            _$LC |>
-            lapply(`[[`, i) |>
-            lapply(`[[`, "elc") |>
-            do.call(c, args = _) |>
-            (\(x) mix * x)() |>
-            sum()
-        spline$values[i]<- rnorm(1, pmean, height * elc)
+        mean<- sum(plc[i, parents] * spline$values[parents])
+        spline$values[i]<- rnorm(1, mean, height * sqrt(var[i]))
     }
     return( spline )
 }

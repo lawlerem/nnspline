@@ -5,13 +5,12 @@ library(Matrix)
 library(igraph)
 library(tmap)
 nx<- 10000
-ny<- 20000
+ny<- 2000
 lc_sequence<- c(0, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2)
 smoothness<- 0.1
 height<- 5
 mean<- 500
 y_sd<- 3
-
 
 geometry<- c(xmin = 0, ymin = 0, xmax = 1, ymax = 1) |>
     sf::st_bbox() |>
@@ -22,11 +21,11 @@ geometry<- c(xmin = 0, ymin = 0, xmax = 1, ymax = 1) |>
 spline<- create_lcspline(
         geometry |> sf::st_centroid() |> sf::st_coordinates(),
         graph = geometry |> elhelpers::dagify(adjacency_power = 2),
-        lc_sequence = c(0, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2)
+        lc_sequence = c(0.02, 0.05, 0.1, 0.2, 0.5, 1, 2)
     )
 spline<- spline |> rlcspline(smoothness, height)
+spline$values |> dlcspline(spline, smoothness, height)
 geometry$value<- spline$values
-tm_shape(geometry) + tm_fill(fill = "value", fill.scale = tm_scale_continuous())
 y<- geometry |>
     nrow() |>
     sample(ny, replace = TRUE) |>
@@ -57,12 +56,14 @@ system.time({
     obj<- f |> MakeADFun(pars, random = "w")
     opt<- obj |> with(nlminb(par, fn, gr))
     sdr<- obj |> sdreport(opt$par)
+    sim<- obj$simulate()
 })
 
 geometry$estimate<- obj$env$parList(opt$par)$w
+geometry$sim<- sim$w
 tm_shape(geometry) + 
         tm_fill(
-            fill = c("value", "estimate"), 
+            fill = c("value", "estimate", "sim"), 
             fill.scale = tm_scale_continuous()
         )
 
