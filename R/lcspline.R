@@ -51,14 +51,29 @@ create_lcspline<- function(
             if( range == 0 ) return( (d == 0) * 1 )
             (1 + d/range) * exp( -d/range )
         },
-        lc_sequence = 0,
-        graph
+        lc_range,
+        lc_sequence,
+        lc_n = 5,
+        graph,
+        ...
     ) {
     if( !("matrix" %in% class(x)) ) x<- x |> matrix(ncol = 1)
     n_parents<- min(n_parents, nrow(x))
     
     if( missing(graph) ) {
         graph<- x |> dist() |> distance_matrix_to_dag(k = n_parents)
+    }
+    if( missing(lc_sequence) & missing(lc_range) ) {
+        if( missing(lc_range) ) {
+            upper_lc<- find_upper_range(
+                x,
+                graph,
+                correlation_function,
+                ...
+            )
+            lc_range<- c(0, upper_lc)
+        }
+        lc_sequence<- seq(min(lc_range), max(lc_range), length.out = lc_n)
     }
     lc_sequence<- lc_sequence |> sort()
 
@@ -112,6 +127,97 @@ mixtape_recorder<- function(nodes) {
         }
     }
     return(mixtape)
+}
+
+#' Find a sensible upper limit for the range parameter
+#' 
+#' When assuming each variable has a marginal variance of 1, the conditional
+#'     variance of each variable given its parents is bounded between 0 and 1,
+#'     and decreases from 1 to 0 as the range parameter increases as long as
+#'     the correlation function is monotonic decreasing.
+#' When the conditional variance is sufficiently small, increasing the range
+#'     parameter has a negligble effect on the conditional distribution and
+#'     can lead to nearly flat neighbourhoods of the likelihood function.
+#' This function find a sensible upper limit for the range parameter by finding
+#'     a value p such that the conditional variance for the variable is 
+#'     sufficiently small for an accurate conditional distribution but not small
+#'     enough for a flat likelihood.
+#'
+#' @param x The spline x coordinates
+#' @param graph The spline graph
+#' @param corfun The correlation function
+#' @param ignore_threshold If x has this many parents or fewer, it will not be
+#'     used when finding the upper limit.
+#' @param subsample An integer giving the number of randomly sampled nodes used
+#'     to find the upper limit.
+#' @param target_variance The target value for the conditional variance at the
+#'     the upper limit of the range parameter.
+#' @param quantile The quantile used to pick the aggregate upper range from the
+#'     the individual range estimates.
+#' 
+#' @return A numeric value giving a sensible upper limit for the range parameter.
+find_upper_range<- function(
+        x,
+        graph,
+        corfun,
+        ignore_threshold = igraph::max_degree(graph, mode = "in") - 1,
+        subsample = 30,
+        target_variance = 0.01,
+        quantile = 0.8
+    ) {
+        ignore_threshold<- min(
+            ignore_threshold,
+            graph |> igraph::max_degree(mode = "in") |> (\(x) x - 1)()
+        )
+    is_ignored<- graph |> 
+        igraph::degree(mode = "in") |> 
+        (\(degree) degree <= ignore_threshold)()
+    target_x<- x |> 
+        nrow() |> 
+        seq() |>
+        _[!is_ignored] |>
+        (\(i) sample(i, min(subsample, length(i))))()
+    obj<- target_x |>
+        lapply(
+            \(v) {
+                p<- graph |> igraph::neighbors(v, "in")
+                v<- c(v, p)
+                n<- length(v)
+                min_d<- x[p, ] |> dist() |> as.matrix() |> _[-1, 1] |> min()
+
+                fn<- function(range) {
+                    S<- matrix(0, n, n)
+                    for( i in seq(n) ) {
+                        for( j in seq(i) ) {
+                            S[i, j]<- S[j, i]<- corfun(
+                                x[v[i], ],
+                                x[v[j], ],
+                                range
+                            )
+                        }
+                    }
+                    AA<- S[1, 1, drop = FALSE]
+                    BA<- S[-1, 1, drop = FALSE]
+                    BB<- S[-1, -1, drop = FALSE]
+                    AB_BBinv<- t(solve(BB, BA))
+                    var<- (AA - AB_BBinv %*% BA) |> as.numeric()
+                    return( (var - target_variance)^2 )
+                }
+                return(
+                    list(
+                        par = min_d,
+                        fn = fn
+                    )
+                )
+            }
+        )
+    target_range<- obj |> 
+        lapply(\(x) nlminb(x$par, x$fn)) |>
+        lapply(`[[`, "par") |>
+        do.call(c, args = _) |>
+        quantile(probs = 0.8) |>
+        unname()
+    return(target_range)
 }
 
 #' Precompute spline structure
