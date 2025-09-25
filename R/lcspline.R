@@ -174,7 +174,7 @@ compute_single_lc<- function(lc, corfun, graph, x) {
                         j = p[[idx]],
                         x = _
                     )
-                var<- (AA - AB_BBinv %*% BA) |> as.numeric() |> sqrt()
+                var<- (AA - AB_BBinv %*% BA) |> as.numeric()
                 list(
                     plc = plc, 
                     var = var
