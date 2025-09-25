@@ -224,15 +224,9 @@ dlcspline<- function(
         constrain_smoothness = TRUE
     ) {
     ll<- 0
-    # Very weak prior to smoothness away from the edges
     if( x |> inherits("simref") ) {
-        simx<- matrix(0, nrow = nrow(x), ncol = ncol(x))
-        for( j in simx |> ncol() |> seq() ) {
-            simx[, j]<- spline |> rlcspline(smoothness, height) |> _$values
-        }
-        x[]<- simx
-        return(x)
     }
+    # Very weak prior to smoothness away from the edges
     ll<- ll + constrain_smoothness * dnorm(qlogis(smoothness), 0, 1.5, TRUE)
     mix<- spline$mixtape(smoothness)
     plc<- spline |>
@@ -240,13 +234,28 @@ dlcspline<- function(
         lapply(`[[`, "plc") |>
         (\(x) Map(`*`, x, as.list(mix)))() |>
         Reduce(`+`, x = _)
-    mean<- (plc %*% x) |> as.matrix()
+
     var<- spline |>
         _$LC |>
         lapply(`[[`, "var") |>
         (\(x) Map(`*`, x, as.list(mix)))() |>
         Reduce(`+`, x = _)
-    ll<- ll + sum(dnorm(x, mean, height * sqrt(var), log = TRUE))
+    if( x |> inherits("simref") ) {
+        for( i in spline$graph |> igraph::topo_sort() |> as.numeric() ) {
+            p<- spline$graph |> igraph::neighbors(i, "in") |> as.numeric()
+            ll<- ll + sum(
+                dnorm(
+                    x[i],
+                    sum(plc[i, p] * x[p]),
+                    height * sqrt(var[i]),
+                    log = TRUE
+                )
+            )
+        }
+    } else {
+        mean<- (plc %*% x) |> as.matrix()
+        ll<- ll + sum(dnorm(x, mean, height * sqrt(var), log = TRUE))
+    }
     if( !log ) ll<- exp(ll)
     return( ll )
 }
