@@ -18,14 +18,14 @@ update_values(spline, values, ...)
 \item{parameters}{The new parameters for the spline. If missing, will use the pre-existing
 parameters stored in the spline.}
 
+\item{values}{The new values for the spline. If missing, will use the pre-existing
+node values stored in the spline.}
+
 \item{...}{Used to pass arguments onto update_parameters and
 update_values.}
 
 \item{noise}{The new variance parameter for uncorrelated noise. If missing, will use
 the pre-existing noise parameter stored in the spline.}
-
-\item{node_values}{The new new values for the spline. If missing, will use the pre-existing
-node values stored in the spline.}
 }
 \value{
 \if{html}{\out{<div class="sourceCode">}}\preformatted{An updated copy of the spline.

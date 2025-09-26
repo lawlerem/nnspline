@@ -4,22 +4,24 @@
 \alias{dlcspline}
 \title{Evaluate the log-likelihood of a lcspline}
 \usage{
-dlcspline(x, spline, smoothness, height, log = TRUE)
+dlcspline(x, spline, stretch, height, log = TRUE)
 }
 \arguments{
 \item{x}{The output values of the spline.}
 
 \item{spline}{A lcspline object.}
 
-\item{smoothness}{A numeric value between 0 and 1 determining the smoothness of the spline.}
+\item{stretch}{A numeric value between 0 and 1 determining the stretch of the spline.
+The value between 0 and 1 is shifted and scaled to the minimum and
+maximum values of the spline's stretch_sequence.}
 
-\item{height}{A positive numeric value proportional to the height of the spline.}
+\item{height}{A positive numeric value proportional to the height of the spline. The
+conditional variance is multiplied by height^2.}
 
 \item{log}{If true, returns the log-likelihood.}
 }
 \value{
-\if{html}{\out{<div class="sourceCode">}}\preformatted{The log-likelihood of the spline evaluated at x. If x is a simref object,
-then additionally the values of x will replaced with simulated values.
+\if{html}{\out{<div class="sourceCode">}}\preformatted{The log-likelihood of the spline evaluated at x.
 }\if{html}{\out{</div>}}
 }
 \description{
