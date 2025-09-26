@@ -8,8 +8,6 @@ get_pairs(dag)
 }
 \arguments{
 \item{dag}{An directed acyclic graph as an igraph object}
-
-\item{x_parents}{A list of sets of parent nodes}
 }
 \value{
 \if{html}{\out{<div class="sourceCode">}}\preformatted{A data.frame giving the list of every node that appears in the same

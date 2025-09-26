@@ -5,21 +5,31 @@
 #'     values are desired
 #' @param n_parents 
 #'     The number of parents each node should have.
-#' @param covariance_function 
-#'     A function used to compute covariances between spline inputs. 
+#' @param correlation_function 
+#'     A function used to compute correlations between spline inputs. 
 #'     Should have the arguments x1 and x2, vectors giving the spline inputs, 
-#'     and a range parameter.
-#' @param lc_sequence
-#'     A numeric vector giving a sequence of range parameters used to precompute
-#'     the spline structure.
+#'     and a stretch parameter equivalent to the traditional range parameter of
+#'     Matern covariance functions.
+#' @param stretch_limits
+#'     Optional. Lower and upper limits of stretch_sequence. If missing, a
+#'     lower limit of 0 is used and a sensible upper limit is found based on
+#'     a random subset of the spline neighbourhood structure.
+#' @param n_stretch
+#'     The number of stretch values used. Values will be equally spaced between
+#'      min(stretch_limits) and max(stretch_limits).
+#' @param stretch_sequence
+#'     Optional. A numeric vector giving a sequence of stretch values used to 
+#'     precompute the spline structure. This value overrides both stretch_limits
+#'     and n_stretch.
 #' @param graph 
-#'     An optional argument. If supplied, it needs to be an igraph object 
-#'     representing a directed acyclic graph.
+#'     Optional. If supplied, it needs to be a directed acyclic graph from the
+#'     igraph package. The graph described the structure of the spline by
+#'     defining a sequence of conditional factorizations of the joint likelihood.
+#' @param ...
+#'     Arguments to pass to find_upper_stretch.
 #' 
 #' @return
 #'     A lcspline object as a list with the following elements:
-#'   * values 
-#'       The output values of the spline at x.
 #'   * map 
 #'       Mapping indices for the node values. See ?TMB::MakeADFun.
 #'   * x 
@@ -28,13 +38,13 @@
 #'       An igraph directed acyclic graph represnting the node parent structure.
 #'   * n_parents 
 #'       The number of parents for each location
-#'   * LC
-#'       A list defining the precomputed spline structure for each range value
-#'       in lc_sequence. Each element of LC is a list with length equal to
-#'       length(values). Each sub-element gives the conditional mean of the
-#'       spline value as a linear combination "plc" of its parents, and 
-#'       the conditional standard deviation as a scalar "elc".
-#'   * lc_sequence
+#'   * cond_mean
+#'       A list of sparse matrices giving the conditional mean structure of the
+#'       spline for each stretch value.
+#'   * cond_var
+#'       A list giving the conditional variances of each node for each stretch
+#'       value.
+#'   * stretch_sequence
 #'       The sequence of range parameters used to compute LC.
 #'   * mixtape
 #'       An AD-compatible function used to compute mixture probabilities used
@@ -46,14 +56,14 @@
 create_lcspline<- function(
         x,
         n_parents = 4,
-        correlation_function = function(x1, x2, range) {
+        correlation_function = function(x1, x2, stretch) {
             d<- sqrt(sum((x1 - x2)^2))
-            if( range == 0 ) return( (d == 0) * 1 )
-            (1 + d/range) * exp( -d/range )
+            if( stretch == 0 ) return( (d == 0) * 1 )
+            (1 + d/stretch) * exp( -d/stretch )
         },
-        lc_range,
-        lc_sequence,
-        lc_n = 5,
+        stretch_limits,
+        n_stretch = 5,
+        stretch_sequence,
         graph,
         ...
     ) {
@@ -63,37 +73,41 @@ create_lcspline<- function(
     if( missing(graph) ) {
         graph<- x |> dist() |> distance_matrix_to_dag(k = n_parents)
     }
-    if( missing(lc_sequence) & missing(lc_range) ) {
-        if( missing(lc_range) ) {
-            upper_lc<- find_upper_range(
+    if( missing(stretch_sequence) & missing(stretch_limits) ) {
+        if( missing(stretch_limits) ) {
+            upper_stretch<- find_upper_stretch(
                 x,
                 graph,
                 correlation_function,
                 ...
             )
-            lc_range<- c(0, upper_lc)
+            stretch_limits<- c(0, upper_stretch)
         }
-        lc_sequence<- seq(min(lc_range), max(lc_range), length.out = lc_n)
+        stretch_sequence<- seq(
+            min(stretch_limits), 
+            max(stretch_limits), 
+            length.out = n_stretch
+        )
     }
-    lc_sequence<- lc_sequence |> sort()
+    stretch_sequence<- stretch_sequence |> sort()
 
     spline<- list(
-        values = x |> nrow() |> numeric(),
         map = x |> nrow() |> seq(),
         x = x,
         graph = graph,
         n_parents = n_parents,
-        LC = list(),
-        lc_sequence = 0,
+        cond_mean = list(),
+        cond_var = list(),
+        stretch_sequence = 0,
         mixtape = function() {},
         correlation_function = correlation_function
     )
-    spline<- spline |> cache_lc(lc_sequence)
+    spline<- spline |> cache_lc(stretch_sequence)
     spline
 }
 
 mixtape_recorder<- function(nodes) {
-    if( requireNamespace("RTMB") ) {
+    if( requireNamespace("RTMB", quitely = TRUE) ) {
         mixtape<- RTMB::MakeTape(
             \(t) {
                 nodes<- nodes |> RTMB::AD()
@@ -145,7 +159,7 @@ mixtape_recorder<- function(nodes) {
 #'
 #' @param x The spline x coordinates
 #' @param graph The spline graph
-#' @param corfun The correlation function
+#' @param correlation_function The correlation function
 #' @param ignore_threshold If x has this many parents or fewer, it will not be
 #'     used when finding the upper limit.
 #' @param subsample An integer giving the number of randomly sampled nodes used
@@ -156,10 +170,12 @@ mixtape_recorder<- function(nodes) {
 #'     the individual range estimates.
 #' 
 #' @return A numeric value giving a sensible upper limit for the range parameter.
-find_upper_range<- function(
+#' 
+#' @export
+find_upper_stretch<- function(
         x,
         graph,
-        corfun,
+        correlation_function,
         ignore_threshold = igraph::max_degree(graph, mode = "in") - 1,
         subsample = 30,
         target_variance = 0.01,
@@ -189,7 +205,7 @@ find_upper_range<- function(
                     S<- matrix(0, n, n)
                     for( i in seq(n) ) {
                         for( j in seq(i) ) {
-                            S[i, j]<- S[j, i]<- corfun(
+                            S[i, j]<- S[j, i]<- correlation_function(
                                 x[v[i], ],
                                 x[v[j], ],
                                 range
@@ -211,34 +227,36 @@ find_upper_range<- function(
                 )
             }
         )
-    target_range<- obj |> 
+    stretch<- obj |> 
         lapply(\(x) nlminb(x$par, x$fn)) |>
         lapply(`[[`, "par") |>
         do.call(c, args = _) |>
         quantile(probs = 0.8) |>
         unname()
-    return(target_range)
+    return(stretch)
 }
 
 #' Precompute spline structure
 #' 
-#' @param lc_sequence A numeric vector giving the range parameters used to
+#' @param stretch_sequence A numeric vector giving the range parameters used to
 #'     precompute the spline structure.
 #' @param spline A lcspline object.
 #' 
 #' @return A copy of spline with an updated precomputed spline structure
 #' 
 #' @export
-cache_lc<- function(spline, lc_sequence) {
-    spline$lc_sequence<- lc_sequence
-    spline$LC<- lc_sequence |>
+cache_lc<- function(spline, stretch_sequence) {
+    spline$stretch_sequence<- stretch_sequence
+    LC<- stretch_sequence |>
         lapply(
             compute_single_lc,
             spline$correlation_function,
             spline$graph,
             spline$x
         )
-    spline$mixtape<- mixtape_recorder(lc_sequence)
+    spline$cond_mean<- LC |> lapply(`[[`, "plc")
+    spline$cond_var<- LC |> lapply(`[[`, "var")
+    spline$mixtape<- mixtape_recorder(stretch_sequence)
     return(spline)
 }
 
@@ -309,58 +327,62 @@ compute_single_lc<- function(lc, corfun, graph, x) {
 #'     The output values of the spline.
 #' @param spline
 #'     A lcspline object.
-#' @param smoothness
-#'     A numeric value between 0 and 1 determining the smoothness of the spline.
+#' @param stretch
+#'     A numeric value between 0 and 1 determining the stretch of the spline.
+#'     The value between 0 and 1 is shifted and scaled to the minimum and
+#'     maximum values of the spline's stretch_sequence.
 #' @param height
-#'     A positive numeric value proportional to the height of the spline.
+#'     A positive numeric value proportional to the height of the spline. The
+#'     conditional variance is multiplied by height^2.
 #' @param log
 #'     If true, returns the log-likelihood.
 #' 
 #' @return
-#'     The log-likelihood of the spline evaluated at x. If x is a simref object,
-#'     then additionally the values of x will replaced with simulated values.
+#'     The log-likelihood of the spline evaluated at x.
 #' 
 #' @export
 dlcspline<- function(
         x, 
         spline, 
-        smoothness, 
+        stretch, 
         height, 
-        log = TRUE,
-        constrain_smoothness = TRUE
+        log = TRUE
     ) {
-    ll<- 0
-    if( x |> inherits("simref") ) {
+    if( requireNamespace("RTMB", quietly = TRUE ) ) {
+        dnorm<- RTMB::dnorm
+    } else {
+        dnorm<- stats::dnorm
     }
-    # Very weak prior to smoothness away from the edges
-    ll<- ll + constrain_smoothness * dnorm(qlogis(smoothness), 0, 1.5, TRUE)
-    mix<- spline$mixtape(smoothness)
-    plc<- spline |>
-        _$LC |>
-        lapply(`[[`, "plc") |>
+
+    ll<- 0
+    mix<- spline$mixtape(stretch)
+    cond_mean<- spline |>
+        _$cond_mean |>
         (\(x) Map(`*`, x, as.list(mix)))() |>
         Reduce(`+`, x = _)
 
-    var<- spline |>
-        _$LC |>
-        lapply(`[[`, "var") |>
+    cond_var<- spline |>
+        _$cond_var |>
         (\(x) Map(`*`, x, as.list(mix)))() |>
         Reduce(`+`, x = _)
     if( x |> inherits("simref") ) {
         for( i in spline$graph |> igraph::topo_sort() |> as.numeric() ) {
-            p<- spline$graph |> igraph::neighbors(i, "in") |> as.numeric()
-            ll<- ll + sum(
-                dnorm(
-                    x[i],
-                    sum(plc[i, p] * x[p]),
-                    height * sqrt(var[i]),
-                    log = TRUE
+            if( is.null(dim(x)) ) dim(x)<- c(length(x), 1)
+            for( j in x |> ncol() |> seq() ) {
+                p<- spline$graph |> igraph::neighbors(i, "in") |> as.numeric()
+                ll<- ll + sum(
+                    dnorm(
+                        x[i, j],
+                        sum(cond_mean[i, p] * x[p, j]),
+                        height * sqrt(cond_var[i]),
+                        log = TRUE
+                    )
                 )
-            )
+            }
         }
     } else {
-        mean<- (plc %*% x) |> as.matrix()
-        ll<- ll + sum(dnorm(x, mean, height * sqrt(var), log = TRUE))
+        mean<- (cond_mean %*% x) |> as.matrix()
+        ll<- ll + sum(dnorm(x, mean, height * sqrt(cond_var), log = TRUE))
     }
     if( !log ) ll<- exp(ll)
     return( ll )
@@ -368,38 +390,56 @@ dlcspline<- function(
 
 #' Simulated a lcspline
 #' 
+#' @param n
+#'     The number of simulations to return.
 #' @param spline
-#'     The lcspline to simulate from
-#' @param smoothness
-#'     A numeric value between 0 and 1 determining the smoothness of the spline.
+#'     The lcspline to simulate from.
+#' @param stretch
+#'     A numeric value between 0 and 1 determining the stretch of the spline.
+#'     The value between 0 and 1 is shifted and scaled to the minimum and
+#'     maximum values of the spline's stretch_sequence.
 #' @param height
-#'     A positive numeric value proportional to the heigh of the spline.
+#'     A positive numeric value proportional to the height of the spline. The
+#'     conditional variance is multiplied by height^2.
 #' 
 #' @return
-#'     A copy of the spline with new simulated values.
+#'     Values simulated from the spline.
 #' 
 #' @export
-rlcspline<- function(spline, smoothness, height) {
-    mix<- spline$mixtape(smoothness)
-    plc<- spline |>
-        _$LC |>
-        lapply(`[[`, "plc") |>
-        (\(x) Map(`*`, x, as.list(mix)))() |>
-        Reduce(`+`, x = _)
-    var<- spline |>
-        _$LC |>
-        lapply(`[[`, "var") |>
-        (\(x) Map(`*`, x, as.list(mix)))() |>
-        Reduce(`+`, x = _)
-    for( i in spline |> _$graph |> igraph::topo_sort() |> as.numeric() ) {
-        parents<- spline |> 
-            _$graph |> 
-            igraph::neighbors(i, "in") |> 
-            as.numeric()
-        mean<- sum(plc[i, parents] * spline$values[parents])
-        spline$values[i]<- rnorm(1, mean, height * sqrt(var[i]))
+rlcspline<- function(n = 1, spline, stretch, height) {
+    if( requireNamespace("RTMB", quietly = TRUE ) ) {
+        dnorm<- RTMB::dnorm
+    } else {
+        dnorm<- stats::dnorm
     }
-    return( spline )
+    values<- matrix(
+        0,
+        nrow = spline |> _$graph |> igraph::V() |> length(),
+        ncol = n
+    )
+    mix<- spline$mixtape(stretch)
+    cond_mean<- spline |>
+        _$cond_mean |>
+        (\(x) Map(`*`, x, as.list(mix)))() |>
+        Reduce(`+`, x = _)
+
+    cond_var<- spline |>
+        _$cond_var |>
+        (\(x) Map(`*`, x, as.list(mix)))() |>
+        Reduce(`+`, x = _)
+    for( i in spline$graph |> igraph::topo_sort() |> as.numeric() ) {
+        for( j in n |> seq() ) {
+            p<- spline$graph |> igraph::neighbors(i, "in") |> as.numeric()
+            values[i, j]<- rnorm(
+                    1,
+                    sum(cond_mean[i, p] * values[p, j]),
+                    height * sqrt(cond_var[i])
+                )
+        }
+    }
+    if( n == 1 ) values <- c(values)
+
+    return( values )
 }
 
 

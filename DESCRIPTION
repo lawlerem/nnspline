@@ -1,10 +1,11 @@
 Package: nnspline
 Title: Easy and computationally efficient splines
-Version: 1.7.3
+Version: 1.7.4
 Authors@R: 
     person("Ethan", "Lawler", , "lawlerem@gmail.com", role = c("aut", "cre"),
            comment = c(ORCID = "0000-0002-6225-3009"))
-Description: Create, evaluate, simulate from, and compute likelihoods of multi-dimensional splines. Compatible with RTMB.
+Description: Create, evaluate, simulate from, and compute likelihoods of smooth
+    functions / splines. Compatible with RTMB.
 License: GPL (>= 3)
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
@@ -12,6 +13,7 @@ RoxygenNote: 7.3.3
 Imports: 
     igraph (>= 2.0),
     MASS,
+    Matrix,
     methods,
     mvtnorm,
     stats,

@@ -51,8 +51,6 @@ distance_matrix_to_dag<- function(
 #'
 #' @param dag 
 #'     An directed acyclic graph as an igraph object
-#' @param x_parents 
-#'     A list of sets of parent nodes
 #'
 #' @return 
 #'     A data.frame giving the list of every node that appears in the same

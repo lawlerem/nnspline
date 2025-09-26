@@ -4,13 +4,13 @@
 \alias{cache_lc}
 \title{Precompute spline structure}
 \usage{
-cache_lc(lc_sequence, spline)
+cache_lc(spline, stretch_sequence)
 }
 \arguments{
-\item{lc_sequence}{A numeric vector giving the range parameters used to
-precompute the spline structure.}
-
 \item{spline}{A lcspline object.}
+
+\item{stretch_sequence}{A numeric vector giving the range parameters used to
+precompute the spline structure.}
 }
 \value{
 A copy of spline with an updated precomputed spline structure

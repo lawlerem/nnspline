@@ -164,8 +164,8 @@ update_parameters<- function(
 #' @describeIn update_spline 
 #'     Update a spline's values
 #' 
-#' @param node_values 
-#'     The new new values for the spline. If missing, will use the pre-existing 
+#' @param values 
+#'     The new values for the spline. If missing, will use the pre-existing 
 #'     node values stored in the spline.
 #' 
 #' @export
