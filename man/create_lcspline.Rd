@@ -7,15 +7,19 @@
 create_lcspline(
   x,
   n_parents = 4,
-  correlation_function = function(x1, x2, range) {
+  correlation_function = function(x1, x2, stretch) {
      d <- sqrt(sum((x1 - x2)^2))
-    
-    if (range == 0) 
+   
+     if (stretch == 0) 
          return((d == 0) * 1)
-     (1 + d/range) * exp(-d/range)
+     (1 + d/stretch) *
+    exp(-d/stretch)
  },
-  lc_sequence = 0,
-  graph
+  stretch_limits,
+  n_stretch = 5,
+  stretch_sequence,
+  graph,
+  ...
 )
 }
 \arguments{
@@ -24,22 +28,32 @@ values are desired}
 
 \item{n_parents}{The number of parents each node should have.}
 
-\item{lc_sequence}{A numeric vector giving a sequence of range parameters used to precompute
-the spline structure.}
-
-\item{graph}{An optional argument. If supplied, it needs to be an igraph object
-representing a directed acyclic graph.}
-
-\item{covariance_function}{A function used to compute covariances between spline inputs.
+\item{correlation_function}{A function used to compute correlations between spline inputs.
 Should have the arguments x1 and x2, vectors giving the spline inputs,
-and a range parameter.}
+and a stretch parameter equivalent to the traditional range parameter of
+Matern covariance functions.}
+
+\item{stretch_limits}{Optional. Lower and upper limits of stretch_sequence. If missing, a
+lower limit of 0 is used and a sensible upper limit is found based on
+a random subset of the spline neighbourhood structure.}
+
+\item{n_stretch}{The number of stretch values used. Values will be equally spaced between
+min(stretch_limits) and max(stretch_limits).}
+
+\item{stretch_sequence}{Optional. A numeric vector giving a sequence of stretch values used to
+precompute the spline structure. This value overrides both stretch_limits
+and n_stretch.}
+
+\item{graph}{Optional. If supplied, it needs to be a directed acyclic graph from the
+igraph package. The graph described the structure of the spline by
+defining a sequence of conditional factorizations of the joint likelihood.}
+
+\item{...}{Arguments to pass to find_upper_stretch.}
 }
 \value{
 \if{html}{\out{<div class="sourceCode">}}\preformatted{A lcspline object as a list with the following elements:
 }\if{html}{\out{</div>}}
 \itemize{
-\item values
-The output values of the spline at x.
 \item map
 Mapping indices for the node values. See ?TMB::MakeADFun.
 \item x
@@ -48,13 +62,13 @@ The locations at which the spline is evaluated.
 An igraph directed acyclic graph represnting the node parent structure.
 \item n_parents
 The number of parents for each location
-\item LC
-A list defining the precomputed spline structure for each range value
-in lc_sequence. Each element of LC is a list with length equal to
-length(values). Each sub-element gives the conditional mean of the
-spline value as a linear combination "plc" of its parents, and
-the conditional standard deviation as a scalar "elc".
-\item lc_sequence
+\item cond_mean
+A list of sparse matrices giving the conditional mean structure of the
+spline for each stretch value.
+\item cond_var
+A list giving the conditional variances of each node for each stretch
+value.
+\item stretch_sequence
 The sequence of range parameters used to compute LC.
 \item mixtape
 An AD-compatible function used to compute mixture probabilities used

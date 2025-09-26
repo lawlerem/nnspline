@@ -4,17 +4,22 @@
 \alias{rlcspline}
 \title{Simulated a lcspline}
 \usage{
-rlcspline(spline, smoothness, height)
+rlcspline(n = 1, spline, stretch, height)
 }
 \arguments{
-\item{spline}{The lcspline to simulate from}
+\item{n}{The number of simulations to return.}
 
-\item{smoothness}{A numeric value between 0 and 1 determining the smoothness of the spline.}
+\item{spline}{The lcspline to simulate from.}
 
-\item{height}{A positive numeric value proportional to the heigh of the spline.}
+\item{stretch}{A numeric value between 0 and 1 determining the stretch of the spline.
+The value between 0 and 1 is shifted and scaled to the minimum and
+maximum values of the spline's stretch_sequence.}
+
+\item{height}{A positive numeric value proportional to the height of the spline. The
+conditional variance is multiplied by height^2.}
 }
 \value{
-\if{html}{\out{<div class="sourceCode">}}\preformatted{A copy of the spline with new simulated values.
+\if{html}{\out{<div class="sourceCode">}}\preformatted{Values simulated from the spline.
 }\if{html}{\out{</div>}}
 }
 \description{
