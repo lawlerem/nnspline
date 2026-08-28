@@ -401,12 +401,14 @@ dlcspline<- function(
 #' @param height
 #'     A positive numeric value proportional to the height of the spline. The
 #'     conditional variance is multiplied by height^2.
+#' @param center
+#'     Logical. If true, the simulated spline values will have mean 0.
 #' 
 #' @return
 #'     Values simulated from the spline.
 #' 
 #' @export
-rlcspline<- function(n = 1, spline, stretch, height) {
+rlcspline<- function(n = 1, spline, stretch, height, center = FALSE) {
     if( requireNamespace("RTMB", quietly = TRUE ) ) {
         dnorm<- RTMB::dnorm
     } else {
@@ -437,6 +439,7 @@ rlcspline<- function(n = 1, spline, stretch, height) {
                 )
         }
     }
+    if( center ) values<- sweep(values, 2, colSums(values))
     if( n == 1 ) values <- c(values)
 
     return( values )

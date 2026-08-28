@@ -4,7 +4,7 @@
 \alias{rlcspline}
 \title{Simulated a lcspline}
 \usage{
-rlcspline(n = 1, spline, stretch, height)
+rlcspline(n = 1, spline, stretch, height, center = FALSE)
 }
 \arguments{
 \item{n}{The number of simulations to return.}
@@ -17,6 +17,8 @@ maximum values of the spline's stretch_sequence.}
 
 \item{height}{A positive numeric value proportional to the height of the spline. The
 conditional variance is multiplied by height^2.}
+
+\item{center}{Logical. If true, the simulated spline values will have mean 0.}
 }
 \value{
 \if{html}{\out{<div class="sourceCode">}}\preformatted{Values simulated from the spline.

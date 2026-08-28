@@ -4,12 +4,14 @@
 \alias{rspline}
 \title{Simulate a spline}
 \usage{
-rspline(spline, n = 1)
+rspline(spline, n = 1, center = FALSE)
 }
 \arguments{
 \item{spline}{The spline to simulate from}
 
 \item{n}{The number of samples}
+
+\item{center}{Logical. If true, the spline values will have mean 0.}
 }
 \value{
 \if{html}{\out{<div class="sourceCode">}}\preformatted{A list of length n with the simulated splines. If n == 1 then the 

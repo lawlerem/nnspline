@@ -16,12 +16,16 @@ export(update_spline)
 export(update_values)
 importFrom(Matrix,sparseMatrix)
 importFrom(methods,as)
-importFrom(stats,complete.cases)
-importFrom(stats,dist)
-importFrom(stats,dnorm)
-importFrom(stats,nlminb)
-importFrom(stats,qlogis)
-importFrom(stats,rnorm)
-importFrom(utils,combn)
-importFrom(utils,head)
-importFrom(utils,tail)
+importFrom(stats,
+  complete.cases,
+  dist,
+  dnorm,
+  nlminb,
+  qlogis,
+  rnorm
+)
+importFrom(utils,
+  combn,
+  head,
+  tail
+)

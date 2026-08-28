@@ -248,6 +248,8 @@ dspline<- function(
 #'     The spline to simulate from
 #' @param n 
 #'     The number of samples
+#' @param center
+#'     Logical. If true, the spline values will have mean 0.
 #' 
 #' @return 
 #'     A list of length n with the simulated splines. If n == 1 then the 
@@ -256,7 +258,8 @@ dspline<- function(
 #' @export
 rspline<- function(
         spline,
-        n = 1
+        n = 1,
+        center = FALSE
     ) {
     spline<- spline |> update_parameters()
     values<- matrix(
@@ -282,7 +285,11 @@ rspline<- function(
     }
     sims<- seq(n) |> 
         lapply(
-            function(i) spline |> update_values(values[, i])
+            function(i) {
+                spline<- spline |> update_values(values[, i])
+                if( center ) spline$values<- spline$values - mean(spline$values)
+                return( spline )
+            }
         )
 
     if( length(sims) == 1 ) sims<- sims[[1]]
