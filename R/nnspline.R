@@ -111,8 +111,8 @@ update_spline<- function(
         ...
     ) {
     spline<- spline |> 
-        update_parameters(...) |>
-        update_values(...)
+        update_parameters(parameters = parameters, ...) |>
+        update_values(values = values, ...)
 
     return(spline)
 }
