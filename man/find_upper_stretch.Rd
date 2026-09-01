@@ -4,15 +4,7 @@
 \alias{find_upper_stretch}
 \title{Find a sensible upper limit for the range parameter}
 \usage{
-find_upper_stretch(
-  x,
-  graph,
-  correlation_function,
-  ignore_threshold = igraph::max_degree(graph, mode = "in") - 1,
-  subsample = 30,
-  target_variance = 0.01,
-  quantile = 0.8
-)
+find_upper_stretch(x, graph, correlation_function, target_correlation = 0.9)
 }
 \arguments{
 \item{x}{The spline x coordinates}
@@ -21,31 +13,19 @@ find_upper_stretch(
 
 \item{correlation_function}{The correlation function}
 
-\item{ignore_threshold}{If x has this many parents or fewer, it will not be
-used when finding the upper limit.}
-
-\item{subsample}{An integer giving the number of randomly sampled nodes used
-to find the upper limit.}
-
-\item{target_variance}{The target value for the conditional variance at the
-the upper limit of the range parameter.}
-
-\item{quantile}{The quantile used to pick the aggregate upper range from the
-the individual range estimates.}
+\item{target_correlation}{The target value for the correlation of the
+furthest apart neighbor coordinates at the the upper limit of the range
+parameter.}
 }
 \value{
 A numeric value giving a sensible upper limit for the range parameter.
 }
 \description{
-When assuming each variable has a marginal variance of 1, the conditional
-variance of each variable given its parents is bounded between 0 and 1,
-and decreases from 1 to 0 as the range parameter increases as long as
-the correlation function is monotonic decreasing.
-When the conditional variance is sufficiently small, increasing the range
-parameter has a negligble effect on the conditional distribution and
-can lead to nearly flat neighbourhoods of the likelihood function.
-This function find a sensible upper limit for the range parameter by finding
-a value p such that the conditional variance for the variable is
-sufficiently small for an accurate conditional distribution but not small
-enough for a flat likelihood.
+This function makes a few assumptions about the spline correlation function.
+1.) Stationariy: it depends only on the distance between two points
+and not the actual location of those points.
+2.) Monotone decreasing in distance.
+3.) Approaches 0 as distance goes to infinity.
+It finds the range parameter at which the correlation between any x and any
+of its parents is at least a target value.
 }
